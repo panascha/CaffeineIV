@@ -1,0 +1,11 @@
+{
+  "name": "Caffeine._.iv",
+  "short_name": "CaffeineIV",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF6F0",
+  "theme_color": "#7C3A1E",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

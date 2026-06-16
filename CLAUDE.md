@@ -14,10 +14,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Routing:** React Router v6
 - **State:** React Context (CartContext, ShopContext, AuthContext) + useState
 - **Backend:** Google Apps Script (GAS) → Google Sheets (data) + Google Drive (images)
-- **Auth:** Google Identity Services (Google Sign-In) — admin only
+- **Auth:** Username + password stored in `admins` Google Sheet — no OAuth
 - **Real-time:** Polling via GAS every 15s with request guard on ConfirmPage
 - **Charts:** Chart.js + react-chartjs-2
 - **QR:** `qrcode.react` for PromptPay QR
+- **GAS IDs:** Sheet `1gBqSZdbe8GQ3aOv5i_7nar6VJQ6U35dcjTdqlXHGjmc`, Drive folder `1GyKfyWg2pJXf_HcMlMyN6C_i89ZgcU0S`, Script `1xAUiKqj3sejFtcwkd-Ombpr02jTIa7_IRiu9s2ojXrqVVyMHKsZq9ysA`
 
 ## Commands
 
@@ -39,7 +40,7 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 **Context hierarchy:**
 - `ShopContext` — polls `getConfig` on mount; if `shop_open=FALSE`, blocks all ordering with overlay
 - `CartContext` — backed to `localStorage`, cleared after order confirmed
-- `AuthContext` — Google credential in `localStorage`, `exp` checked by `ProtectedRoute` on each admin load
+- `AuthContext` — session `{ admin_name, exp }` in `localStorage`, `exp` checked by `ProtectedRoute` on each admin load (8-hour session)
 
 **Key design decisions:**
 - Phone number is the primary key for loyalty stamps and wallet — no customer login required
@@ -130,17 +131,22 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 ## Environment Variables
 
 ```env
-VITE_GOOGLE_CLIENT_ID=        # OAuth 2.0 Client ID
-VITE_ADMIN_EMAIL=             # Only this Google email can access /admin
 VITE_GAS_WEBAPP_URL=          # Deployed GAS web app URL
 VITE_GAS_SECRET=              # Token checked by GAS on every request
 VITE_PROMPTPAY_NUMBER=        # PromptPay phone/tax ID for QR generation
-VITE_SLIP_VERIFY_API_KEY=     # External slip verification API key (EasySlip)
+VITE_SLIP_VERIFY_API_KEY=     # EasySlip API key (optional)
 ```
+
+GAS Script Properties (set in Apps Script → Project Settings):
+- `GAS_SECRET` — same as VITE_GAS_SECRET
+- `ADMIN_EMAIL` — receives new-order notification emails
+- `SLIP_VERIFY_API_KEY` — EasySlip key (optional)
 
 ## GAS Actions Reference
 
-**POST actions:** `submitOrder`, `updateStatus`, `uploadDropoffPhoto`, `saveMenuItem`, `updateConfig`, `updateStock`, `submitFeedback`, `topUpWallet`
+**POST actions (no secret):** `login`, `setAdminPassword` (first-run only, blocked once any admin exists)
+
+**POST actions (require secret):** `submitOrder`, `updateStatus`, `uploadDropoffPhoto`, `saveMenuItem`, `updateConfig`, `updateStock`, `submitFeedback`, `topUpWallet`, `changePassword`
 
 **GET actions:** `getMenu`, `getOrders&date=`, `getOrderStatus&order_id=`, `getConfig`, `getDeliverySlots&from=`, `getCustomer&phone=`, `getIngredients`, `getBatchSummary&date=`, `getWardGrouping&date=`
 
@@ -174,7 +180,7 @@ VITE_SLIP_VERIFY_API_KEY=     # External slip verification API key (EasySlip)
 
 ## Google Sheets Schema
 
-8 sheets: `orders`, `customers`, `menu`, `delivery_slots`, `ingredients`, `feedback`, `config`, `slip_hashes`
+9 sheets: `admins`, `orders`, `customers`, `menu`, `delivery_slots`, `ingredients`, `feedback`, `config`, `slip_hashes`
 
 - `orders`: `order_id`, `created_at`, `delivery_date`, `delivery_slot`, `delivery_location`, `customer_name`, `customer_phone`, `alt_contact`, `items` (JSON), `total_thb`, `note`, `is_gift`, `gift_message`, `is_beta_tester`, `is_fast_pass`, `is_gacha`, `slip_url`, `slip_hash`, `status`, `dropoff_photo_url`, `wallet_used_thb`
 - `customers`: `phone` (PK), `name`, `stamps`, `wallet_thb`, `usual_order` (JSON), `last_location`, `total_orders`, `registered_at`

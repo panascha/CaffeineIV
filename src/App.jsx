@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext.jsx'
 import MenuPage from './pages/MenuPage.jsx'
 import CheckoutPage from './pages/CheckoutPage.jsx'
 import PaymentPage from './pages/PaymentPage.jsx'
@@ -18,6 +19,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 
 export default function App() {
   return (
+    <AuthProvider>
     <BrowserRouter>
       <Routes>
         {/* Customer */}
@@ -42,5 +44,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </AuthProvider>
   )
 }

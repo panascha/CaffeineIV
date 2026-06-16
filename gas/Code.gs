@@ -1,28 +1,48 @@
 // ============================================================
 // Caffeine._.iv — Google Apps Script Backend
-// Deployed as: Web App (Execute as Me, Anyone can access)
+// Script ID:  1xAUiKqj3sejFtcwkd-Ombpr02jTIa7_IRiu9s2ojXrqVVyMHKsZq9ysA
+// Sheet ID:   1gBqSZdbe8GQ3aOv5i_7nar6VJQ6U35dcjTdqlXHGjmc
+// Drive folder: 1GyKfyWg2pJXf_HcMlMyN6C_i89ZgcU0S
+// Deploy as: Web App — Execute as Me, Anyone can access
 // ============================================================
 
-const SECRET = PropertiesService.getScriptProperties().getProperty('GAS_SECRET');
-const SS = SpreadsheetApp.getActiveSpreadsheet();
-const DRIVE_FOLDER_ID = PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID');
-const ADMIN_EMAIL = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL');
-const SLIP_VERIFY_API_KEY = PropertiesService.getScriptProperties().getProperty('SLIP_VERIFY_API_KEY');
+const SHEET_ID        = '1gBqSZdbe8GQ3aOv5i_7nar6VJQ6U35dcjTdqlXHGjmc';
+const DRIVE_FOLDER_ID = '1GyKfyWg2pJXf_HcMlMyN6C_i89ZgcU0S';
+
+// Script Properties required (set in Apps Script → Project Settings → Script Properties):
+//   GAS_SECRET          — random secret, must match VITE_GAS_SECRET
+//   ADMIN_EMAIL         — receives new-order notification emails
+//   SLIP_VERIFY_API_KEY — EasySlip API key (optional; leave empty to skip)
+
+const SECRET           = PropertiesService.getScriptProperties().getProperty('GAS_SECRET');
+const ADMIN_EMAIL      = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL');
+const SLIP_VERIFY_KEY  = PropertiesService.getScriptProperties().getProperty('SLIP_VERIFY_API_KEY');
+
+const SS = SpreadsheetApp.openById(SHEET_ID);
 
 // ── Helpers ──────────────────────────────────────────────────
 
 function ok(data) {
-  return ContentService.createTextOutput(JSON.stringify({ status: 'success', data }))
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: 'success', data }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 function err(message) {
-  return ContentService.createTextOutput(JSON.stringify({ status: 'error', message }))
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: 'error', message }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function sheet(name) {
-  return SS.getSheetByName(name);
+function sheet(name) { return SS.getSheetByName(name); }
+
+function hashPassword(password) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, password);
+  return bytes.map(b => ('0' + (b & 0xFF).toString(16)).slice(-2)).join('');
+}
+
+function tryParse(val, fallback) {
+  try { return JSON.parse(val); } catch (_) { return fallback; }
 }
 
 // ── Entry Points ─────────────────────────────────────────────
@@ -30,18 +50,25 @@ function sheet(name) {
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
+
+    // login does not require secret (credentials are the proof)
+    if (body.action === 'login')            return login(body.data);
+    // setAdminPassword only works when admins sheet is empty; no secret needed
+    if (body.action === 'setAdminPassword') return setAdminPassword(body.data);
+
     if (body.secret !== SECRET) return err('UNAUTHORIZED');
 
     switch (body.action) {
-      case 'submitOrder':       return submitOrder(body.data);
-      case 'updateStatus':      return updateStatus(body.data);
+      case 'submitOrder':        return submitOrder(body.data);
+      case 'updateStatus':       return updateStatus(body.data);
       case 'uploadDropoffPhoto': return uploadDropoffPhoto(body.data);
-      case 'saveMenuItem':      return saveMenuItem(body.data);
-      case 'updateConfig':      return updateConfig(body.data);
-      case 'updateStock':       return updateStock(body.data);
-      case 'submitFeedback':    return submitFeedback(body.data);
-      case 'topUpWallet':       return topUpWallet(body.data);
-      default:                  return err('UNKNOWN_ACTION');
+      case 'saveMenuItem':       return saveMenuItem(body.data);
+      case 'updateConfig':       return updateConfig(body.data);
+      case 'updateStock':        return updateStock(body.data);
+      case 'submitFeedback':     return submitFeedback(body.data);
+      case 'topUpWallet':        return topUpWallet(body.data);
+      case 'changePassword':     return changePassword(body.data);
+      default:                   return err('UNKNOWN_ACTION');
     }
   } catch (ex) {
     return err(ex.message);
@@ -52,45 +79,78 @@ function doGet(e) {
   try {
     const p = e.parameter;
     switch (p.action) {
-      case 'getMenu':           return ok(getMenu());
-      case 'getOrders':         return ok(getOrders(p.date));
-      case 'getOrderStatus':    return ok(getOrderStatus(p.order_id));
-      case 'getConfig':         return ok(getConfig());
-      case 'getDeliverySlots':  return ok(getDeliverySlots(p.from));
-      case 'getCustomer':       return ok(getCustomer(p.phone));
-      case 'getIngredients':    return ok(getIngredients());
-      case 'getBatchSummary':   return ok(getBatchSummary(p.date));
-      case 'getWardGrouping':   return ok(getWardGrouping(p.date));
-      default:                  return err('UNKNOWN_ACTION');
+      case 'getMenu':          return ok(getMenu());
+      case 'getOrders':        return ok(getOrders(p.date));
+      case 'getOrderStatus':   return ok(getOrderStatus(p.order_id));
+      case 'getConfig':        return ok(getConfig());
+      case 'getDeliverySlots': return ok(getDeliverySlots(p.from));
+      case 'getCustomer':      return ok(getCustomer(p.phone));
+      case 'getIngredients':   return ok(getIngredients());
+      case 'getBatchSummary':  return ok(getBatchSummary(p.date));
+      case 'getWardGrouping':  return ok(getWardGrouping(p.date));
+      default:                 return err('UNKNOWN_ACTION');
     }
   } catch (ex) {
     return err(ex.message);
   }
 }
 
+// ── Auth ──────────────────────────────────────────────────────
+
+function login(data) {
+  if (!data.username || !data.password) return err('MISSING_FIELDS');
+  const hash = hashPassword(data.password);
+  const rows = sheet('admins').getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === data.username && rows[i][1] === hash) {
+      const exp = Date.now() + 8 * 60 * 60 * 1000; // 8-hour session
+      return ok({ admin_name: rows[i][2] || rows[i][0], exp });
+    }
+  }
+  return err('INVALID_CREDENTIALS');
+}
+
+// First-time setup only — blocked once any admin exists
+function setAdminPassword(data) {
+  if (!data.username || !data.password) return err('MISSING_FIELDS');
+  const s = sheet('admins');
+  const rows = s.getDataRange().getValues();
+  const existing = rows.slice(1).filter(r => r[0]);
+  if (existing.length > 0) return err('ADMIN_ALREADY_EXISTS');
+  s.appendRow([data.username, hashPassword(data.password), data.display_name || data.username]);
+  return ok({});
+}
+
+// Requires secret — called from admin UI
+function changePassword(data) {
+  if (!data.username || !data.new_password) return err('MISSING_FIELDS');
+  const s = sheet('admins');
+  const rows = s.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === data.username) {
+      s.getRange(i + 1, 2).setValue(hashPassword(data.new_password));
+      return ok({});
+    }
+  }
+  return err('ADMIN_NOT_FOUND');
+}
+
 // ── POST Handlers ─────────────────────────────────────────────
 
 function submitOrder(data) {
-  // Duplicate slip check
   if (data.slip_hash && checkDuplicateSlip(data.slip_hash)) return err('DUPLICATE_SLIP');
 
-  // Optional: external slip verification
-  if (SLIP_VERIFY_API_KEY && data.slip_base64) {
-    const valid = verifySlipExternal(data.slip_base64);
-    if (!valid) {
-      MailApp.sendEmail(ADMIN_EMAIL, '[CaffeineIV] Slip rejected', `Order ${data.order_id} — slip failed verification.`);
+  if (SLIP_VERIFY_KEY && data.slip_base64) {
+    if (!verifySlipExternal(data.slip_base64)) {
+      if (ADMIN_EMAIL) MailApp.sendEmail(ADMIN_EMAIL, '[CaffeineIV] Slip rejected', `Order ${data.order_id} — slip failed external verification.`);
       return err('SLIP_INVALID');
     }
   }
 
-  // Upload slip to Drive
   let slip_url = '';
-  if (data.slip_base64) {
-    slip_url = saveToDrive(data.slip_base64, `slip_${data.order_id}.jpg`);
-  }
+  if (data.slip_base64) slip_url = saveToDrive(data.slip_base64, `slip_${data.order_id}.jpg`);
 
-  const s = sheet('orders');
-  s.appendRow([
+  sheet('orders').appendRow([
     data.order_id,
     data.created_at || new Date().toISOString().replace('T', ' ').slice(0, 19),
     data.delivery_date,
@@ -110,26 +170,15 @@ function submitOrder(data) {
     slip_url,
     data.slip_hash || '',
     'pending',
-    '',  // dropoff_photo_url
+    '',
     data.wallet_used_thb || 0,
   ]);
 
-  // Record slip hash
-  if (data.slip_hash) {
-    sheet('slip_hashes').appendRow([data.slip_hash, data.order_id, new Date().toISOString()]);
-  }
-
-  // Deduct wallet if used
+  if (data.slip_hash) sheet('slip_hashes').appendRow([data.slip_hash, data.order_id, new Date().toISOString()]);
   if (data.wallet_used_thb > 0) deductWallet(data.customer_phone, data.wallet_used_thb);
-
-  // Update customer record
   updateCustomer_(data);
-
-  // Notify admin
-  sendOrderNotification(data);
-
-  // Increment booked count on delivery slot
   incrementSlotBooked_(data.delivery_date, data.delivery_slot);
+  if (ADMIN_EMAIL) sendOrderNotification(data);
 
   return ok({ order_id: data.order_id });
 }
@@ -139,7 +188,7 @@ function updateStatus(data) {
   const rows = s.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === data.order_id) {
-      s.getRange(i + 1, 19).setValue(data.status); // col S
+      s.getRange(i + 1, 19).setValue(data.status);
       return ok({ order_id: data.order_id, status: data.status });
     }
   }
@@ -152,7 +201,7 @@ function uploadDropoffPhoto(data) {
   const rows = s.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === data.order_id) {
-      s.getRange(i + 1, 20).setValue(url); // col T
+      s.getRange(i + 1, 20).setValue(url);
       return ok({ url });
     }
   }
@@ -166,16 +215,16 @@ function saveMenuItem(data) {
     if (rows[i][0] === data.item_id) {
       s.getRange(i + 1, 1, 1, 12).setValues([[
         data.item_id, data.name, data.name_th, data.base_price_thb,
-        data.category, data.description, data.image_url,
-        data.available, data.is_specialty_week,
-        JSON.stringify(data.bean_options), JSON.stringify(data.milk_options),
-        data.oat_surcharge_thb,
+        data.category, data.description || '', data.image_url || '',
+        data.available !== false, data.is_specialty_week || false,
+        JSON.stringify(data.bean_options || []),
+        JSON.stringify(data.milk_options || []),
+        data.oat_surcharge_thb || 0,
       ]]);
       return ok({ item_id: data.item_id });
     }
   }
-  // New item
-  s.appendRow([
+  sheet('menu').appendRow([
     data.item_id, data.name, data.name_th, data.base_price_thb,
     data.category, data.description || '', data.image_url || '',
     data.available !== false, data.is_specialty_week || false,
@@ -222,9 +271,8 @@ function topUpWallet(data) {
   const rows = s.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === data.phone) {
-      const current = Number(rows[i][3]);
-      s.getRange(i + 1, 4).setValue(current + data.amount_thb);
-      return ok({ phone: data.phone, wallet_thb: current + data.amount_thb });
+      s.getRange(i + 1, 4).setValue(Number(rows[i][3]) + data.amount_thb);
+      return ok({ phone: data.phone, wallet_thb: Number(rows[i][3]) + data.amount_thb });
     }
   }
   return err('CUSTOMER_NOT_FOUND');
@@ -335,7 +383,7 @@ function getWardGrouping(date) {
   return counts;
 }
 
-// ── Drive ────────────────────────────────────────────────────
+// ── Drive ─────────────────────────────────────────────────────
 
 function saveToDrive(base64, filename) {
   const match = base64.match(/^data:([^;]+);base64,(.+)$/);
@@ -348,39 +396,38 @@ function saveToDrive(base64, filename) {
   return file.getUrl();
 }
 
-// ── Slip Verification ────────────────────────────────────────
+// ── Slip Verification ─────────────────────────────────────────
 
 function checkDuplicateSlip(hash) {
-  const rows = sheet('slip_hashes').getDataRange().getValues();
-  return rows.some(row => row[0] === hash);
+  return sheet('slip_hashes').getDataRange().getValues().some(row => row[0] === hash);
 }
 
 function verifySlipExternal(base64) {
-  // EasySlip API — returns true if slip is valid
   try {
     const response = UrlFetchApp.fetch('https://api.easyslip.com/api/v1/verify', {
       method: 'post',
       contentType: 'application/json',
-      headers: { 'Authorization': `Bearer ${SLIP_VERIFY_API_KEY}` },
+      headers: { 'Authorization': `Bearer ${SLIP_VERIFY_KEY}` },
       payload: JSON.stringify({ image: base64 }),
       muteHttpExceptions: true,
     });
-    const result = JSON.parse(response.getContentText());
-    return result.success === true;
+    return JSON.parse(response.getContentText()).success === true;
   } catch (_) {
     return true; // fail open — don't block orders on API error
   }
 }
 
-// ── Notifications ────────────────────────────────────────────
+// ── Notifications ─────────────────────────────────────────────
 
 function sendOrderNotification(order) {
-  const subject = `[CaffeineIV] New order ${order.order_id}`;
-  const body = `Order: ${order.order_id}\nCustomer: ${order.customer_name} (${order.customer_phone})\nDelivery: ${order.delivery_date} ${order.delivery_slot}\nTotal: ${order.total_thb} THB`;
-  MailApp.sendEmail(ADMIN_EMAIL, subject, body);
+  MailApp.sendEmail(
+    ADMIN_EMAIL,
+    `[CaffeineIV] New order ${order.order_id}`,
+    `Order: ${order.order_id}\nCustomer: ${order.customer_name} (${order.customer_phone})\nDelivery: ${order.delivery_date} ${order.delivery_slot}\nTotal: ${order.total_thb} THB`
+  );
 }
 
-// ── Customer Helpers ─────────────────────────────────────────
+// ── Customer helpers ──────────────────────────────────────────
 
 function updateCustomerStamps(phone, delta) {
   const s = sheet('customers');
@@ -398,8 +445,7 @@ function deductWallet(phone, amount) {
   const rows = s.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === phone) {
-      const current = Number(rows[i][3]);
-      s.getRange(i + 1, 4).setValue(Math.max(0, current - amount));
+      s.getRange(i + 1, 4).setValue(Math.max(0, Number(rows[i][3]) - amount));
       return;
     }
   }
@@ -408,22 +454,19 @@ function deductWallet(phone, amount) {
 function calcBatchVolumes(date) {
   const orders = getOrders(date);
   const ingredients = getIngredients();
-  const volumes = {};
   const ingMap = {};
   ingredients.forEach(ing => ingMap[ing.ingredient_id] = ing);
-
+  const volumes = {};
   orders.forEach(o => {
     (o.items || []).forEach(item => {
       if (item.milk) {
-        const key = item.milk + '_milk';
+        const key = `${item.milk}_milk`;
         volumes[key] = (volumes[key] || 0) + (ingMap[key]?.per_drink_qty || 0) * item.qty;
       }
     });
   });
   return volumes;
 }
-
-// ── Private helpers ───────────────────────────────────────────
 
 function updateCustomer_(data) {
   const s = sheet('customers');
@@ -432,14 +475,13 @@ function updateCustomer_(data) {
     if (rows[i][0] === data.customer_phone) {
       s.getRange(i + 1, 2).setValue(data.customer_name);
       s.getRange(i + 1, 6).setValue(data.delivery_location);
-      s.getRange(i + 1, 7).setValue(Number(rows[i][6]) + 1); // total_orders
+      s.getRange(i + 1, 7).setValue(Number(rows[i][6]) + 1);
       return;
     }
   }
-  // New customer
-  s.appendRow([
-    data.customer_phone, data.customer_name, 0, 0, '', data.delivery_location, 1,
-    new Date().toISOString().slice(0, 10),
+  sheet('customers').appendRow([
+    data.customer_phone, data.customer_name, 0, 0, '',
+    data.delivery_location, 1, new Date().toISOString().slice(0, 10),
   ]);
 }
 
@@ -452,8 +494,4 @@ function incrementSlotBooked_(date, slot_id) {
       return;
     }
   }
-}
-
-function tryParse(val, fallback) {
-  try { return JSON.parse(val); } catch (_) { return fallback; }
 }

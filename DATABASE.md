@@ -1,6 +1,18 @@
 # DATABASE.md — Google Sheets Schema
 
-8 sheets required. Create them in order.
+9 sheets required. Create them in order.
+
+---
+
+## Sheet: `admins`
+
+| Col | Key | Type | Notes |
+|---|---|---|---|
+| A | username | string | Login username |
+| B | password_hash | string | SHA-256 hex of password |
+| C | display_name | string | Shown in admin UI |
+
+Populated via `setAdminPassword` GAS action on first run (only works when sheet is empty).
 
 ---
 

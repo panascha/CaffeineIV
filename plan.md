@@ -25,7 +25,7 @@ Mascot: sleepy pug hooked to a coffee IV drip with "zzz". Hand-drawn line art, c
 | UI | React 18 + Tailwind CSS |
 | Routing | React Router v6 |
 | State | React Context (cart, shop, auth) + useState |
-| Auth | Google Identity Services (Google Sign-In) |
+| Auth | Username + password stored in `admins` Google Sheet |
 | Real-time | Polling via GAS every 15s (with request guard) |
 | Persistence | Google Apps Script → Google Sheets |
 | File Storage | Google Apps Script → Google Drive |
@@ -198,7 +198,7 @@ font-family: 'Plus Jakarta Sans', 'Sarabun', sans-serif;
 | Wallet | `WalletPage.jsx` | Prepaid balance view by phone number |
 | Feedback | `FeedbackPage.jsx` | Anonymous feedback form |
 
-### Admin Flow (Protected — Google Sign-In)
+### Admin Flow (Protected — username/password)
 
 ```
 /admin/login  →  /admin/dashboard
@@ -211,7 +211,7 @@ font-family: 'Plus Jakarta Sans', 'Sarabun', sans-serif;
 
 | Page | File | Purpose |
 |---|---|---|
-| Login | `admin/LoginPage.jsx` | Google Sign-In (restricted to owner email) |
+| Login | `admin/LoginPage.jsx` | Username + password form; credentials verified by GAS against `admins` sheet |
 | Dashboard | `admin/DashboardPage.jsx` | Stats, revenue chart, ward grouping, emergency close |
 | Order Detail | `admin/OrderDetailPage.jsx` | Split-screen slip verify, status control, drop-off photo upload |
 | Menu Manager | `admin/MenuManagerPage.jsx` | Add/edit/hide items, prices, bean highlights |
@@ -244,7 +244,7 @@ CaffeineIV/
 │   │       ├── StockPage.jsx
 │   │       └── BatchPage.jsx
 │   ├── services/
-│   │   ├── auth.service.js     → googleSignIn(), signOut(), getAdminUser()
+│   │   ├── auth.service.js     → adminLogin(), adminLogout(), getAdminSession()
 │   │   └── gas.service.js      → gasPost(), gasGet()
 │   ├── components/
 │   │   ├── layout/
@@ -512,13 +512,16 @@ pending  →  confirmed  →  preparing  →  delivering  →  delivered
 ## Environment Variables
 
 ```env
-VITE_GOOGLE_CLIENT_ID=        # OAuth 2.0 Client ID from Google Cloud Console
-VITE_ADMIN_EMAIL=             # Owner's Google email — only this can access /admin
 VITE_GAS_WEBAPP_URL=          # Deployed GAS web app URL
-VITE_GAS_SECRET=              # Secret token — GAS checks on every request
+VITE_GAS_SECRET=              # Secret token — GAS checks on every mutating request
 VITE_PROMPTPAY_NUMBER=        # PromptPay phone or tax ID for QR generation
-VITE_SLIP_VERIFY_API_KEY=     # External slip verification API key (EasySlip or similar)
+VITE_SLIP_VERIFY_API_KEY=     # EasySlip API key (optional)
 ```
+
+GAS Script Properties (Apps Script → Project Settings → Script Properties):
+- `GAS_SECRET` — same value as VITE_GAS_SECRET
+- `ADMIN_EMAIL` — receives new-order notification emails
+- `SLIP_VERIFY_API_KEY` — EasySlip key (optional)
 
 ---
 

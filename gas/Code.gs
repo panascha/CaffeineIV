@@ -189,6 +189,10 @@ function updateStatus(data) {
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === data.order_id) {
       s.getRange(i + 1, 19).setValue(data.status);
+      if (data.status === 'delivered') {
+        const phone = rows[i][6];
+        if (phone) updateCustomerStamps(phone, 1);
+      }
       return ok({ order_id: data.order_id, status: data.status });
     }
   }
@@ -330,7 +334,7 @@ function getDeliverySlots(from) {
   const rows = sheet('delivery_slots').getDataRange().getValues();
   const headers = rows[0];
   return rows.slice(1)
-    .filter(row => row[0] >= from && row[6] === true)
+    .filter(row => row[0] >= from && (row[6] === true || row[6] === 'TRUE'))
     .map(row => {
       const s = {};
       headers.forEach((h, i) => s[h] = row[i]);

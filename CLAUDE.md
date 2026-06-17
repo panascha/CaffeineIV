@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Stack
 
-- **Frontend:** React 18 + Tailwind CSS, built with Vite, deployed on Vercel
+- **Frontend:** React 18 + Tailwind CSS **v4** (via `@tailwindcss/vite`), built with Vite, deployed on Vercel
 - **Routing:** React Router v6
 - **State:** React Context (CartContext, ShopContext, AuthContext) + useState
 - **Backend:** Google Apps Script (GAS) → Google Sheets (data) + Google Drive (images)
@@ -28,6 +28,12 @@ npm run build     # production build
 npm run preview   # preview production build
 ```
 
+**GAS deployment** (requires `clasp` CLI logged in):
+```bash
+cd gas && clasp push --force
+```
+The `.clasp.json` lives inside `gas/`, so clasp must run from that directory.
+
 ## Architecture
 
 All data lives in Google Sheets, accessed exclusively through a deployed GAS web app URL (`VITE_GAS_WEBAPP_URL`). There is no traditional API server.
@@ -37,20 +43,22 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 - Every POST includes `"secret": VITE_GAS_SECRET` — GAS rejects mismatched tokens
 - GAS response shape: `{ status: "success", data: {...} }` or `{ status: "error", message: "..." }`
 
+**Context provider wrapping order** (in `App.jsx`): `ToastProvider > AuthProvider > ShopProvider > CartProvider > BrowserRouter`
+
 **Context hierarchy:**
 - `ShopContext` — polls `getConfig` on mount; if `shop_open=FALSE`, blocks all ordering with overlay
-- `CartContext` — backed to `localStorage`, cleared after order confirmed
-- `AuthContext` — session `{ admin_name, exp }` in `localStorage`, `exp` checked by `ProtectedRoute` on each admin load (8-hour session)
+- `CartContext` — backed to `localStorage` (`civ_cart` key), cleared after order confirmed; cart item dedup key: `${id}|${bean}|${sweet}|${milk}` via exported `itemKey()` from `CartContext`
+- `AuthContext` — session `{ admin_name, exp }` in `localStorage` (`admin_session` key), `exp` checked by `ProtectedRoute` on each admin load (8-hour session)
 
 **Key design decisions:**
-- Phone number is the primary key for loyalty stamps and wallet — no customer login required
+- Phone number is the primary key for loyalty stamps and wallet — no customer login required. Thai mobile format: `0[689]\d{8}`. Use `normalizePhone` (strips `[-\s().]`) + `validatePhone` from `src/utils/phoneNorm.js` before any GAS call
 - Order ID format: `CIV-${Date.now()}-${random 4-char uppercase}`
 - Slip upload: compress via Canvas API (<500KB) → SHA-256 hash → base64 → GAS → Drive → store URL + hash in Sheet
 - Duplicate slip detection: GAS checks `slip_hashes` sheet before writing; returns `DUPLICATE_SLIP` error
 - Slip verification API (EasySlip): called in GAS `doPost` during `submitOrder` — if invalid, auto-reject and notify admin
 - Fast pass: only activates when `localStorage` has `usual_order` + sufficient wallet balance — skips form + slip
 - Wallet: top-up by admin only (manual deposit) — deducted via GAS on order submit
-- Language toggle (EN/TH): simple key lookup from `i18n` object in `localStorage`, no library
+- Language toggle (EN/TH): simple key lookup from `i18n` object in `localStorage` (`civ_lang` key), no library
 - ConfirmPage polling: 15s interval with request guard, hard stop after 2 hours
 - Ward grouping banner: polls `getWardGrouping` every 60s on MenuPage
 - Gacha: if `is_gacha=TRUE`, seller picks actual drink before changing status to `confirmed`
@@ -66,7 +74,7 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 /feedback  — anonymous feedback
 ```
 
-**Admin (Google Sign-In protected):**
+**Admin (username/password protected via ProtectedRoute):**
 ```
 /admin/login  →  /admin/dashboard
                      ├── /admin/orders/:id   — SlipVerifier, status control, drop-off upload
@@ -127,6 +135,36 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 **Component patterns:** bottom tab bar (Menu / Orders / Stamps / Profile), pill buttons, horizontal-scroll category chips, white cards with `shadow-card`. Content max-width `480px` centered on desktop.
 
 **UI rules:** responsive-first (≥320px), touch targets ≥44px. No emojis, no filler microcopy. Icons via `lucide-react` with text labels. Airy spacing — content never touches screen edges.
+
+**Tailwind v4 note:** No `tailwind.config.js`. Design tokens are CSS custom properties defined in `src/styles/global.css` — Tailwind has no knowledge of them as semantic classes. Reference tokens via `var(--color-primary)` in inline styles or Tailwind's arbitrary value syntax: `bg-[var(--color-primary)]`, `text-[var(--color-text-muted)]`, `shadow-[var(--shadow-card)]`.
+
+## localStorage Keys
+
+| Key | Owner | Contents |
+|---|---|---|
+| `civ_cart` | CartContext | `CartItem[]` — persisted cart state |
+| `admin_session` | AuthContext | `{ admin_name, exp }` — 8-hour admin session |
+| `usual_order` | Fast pass | customer's saved order JSON + phone |
+| `civ_lang` | i18n | `"th"` or `"en"` |
+| `civ_history` | HistoryPage | `OrderSummary[]` — client-side order history |
+
+## Implementation State
+
+All pages and components are fully implemented. Nothing is a stub placeholder.
+
+**Customer pages:** MenuPage, CheckoutPage, PaymentPage, ConfirmPage, HistoryPage, StampsPage, WalletPage, FeedbackPage
+
+**Admin pages:** LoginPage, DashboardPage, OrderDetailPage, MenuManagerPage, CalendarPage, StockPage, BatchPage
+
+**Components:** Toast/ToastProvider, StatusBadge, CountdownTimer, PromptPayQR, Navbar, AnnouncementBanner, WardGroupingBanner, StampCard, DrinkCard, DrinkCustomizer, SpecialtyHighlight, CartDrawer, OrderCard, DropoffPhoto, AdminNav, SlipVerifier, BatchSorter, ProtectedRoute
+
+**Note:** `src/components/order/StatusBadge.jsx` duplicates `src/components/StatusBadge.jsx` — use the top-level one.
+
+## Data Gotchas
+
+- Boolean fields from Sheets can be `true`/`false` or `"TRUE"`/`"FALSE"` string. Check both: `typeof val === 'boolean' ? val : String(val).toUpperCase() === 'TRUE'`
+- `orders.items` arrives as JSON string from GAS — parse with: `typeof o.items === 'string' ? JSON.parse(o.items) : o.items`
+- Date strings from Sheets are `YYYY-MM-DD` — parse as `new Date(date + 'T00:00:00')` to avoid timezone shift
 
 ## Environment Variables
 

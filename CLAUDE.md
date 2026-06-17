@@ -161,7 +161,9 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 
 **`src/utils/promptpay.js`:** `generatePromptPayPayload(phoneOrTaxId, amountThb)` — generates PromptPay EMV QR string with CRC16; phone `0812345678` → `0066812345678` internally
 
-**`src/services/gas.service.js`:** `gasGet(action, params?)` / `gasPost(action, data)` — all GAS calls go through these two functions
+**`src/services/gas.service.js`:** `gasGet(action, params?)` / `gasPost(action, data)` — all GAS calls go through these two functions. `gasGetCached(action, params, onUpdate)` — SWR wrapper: fires IDB cache hit immediately (calls `onUpdate(cached)` if cached), then fetches fresh from GAS and calls `onUpdate(freshData)` again; returns the network Promise. Cache key is the action name alone for zero-param calls (e.g., `'getMenu'`), or `action?param=value` for parameterized calls. Use for stable, display-heavy data (menu, config, ingredients, slots, batch). Use plain `gasGet` for real-time polling (order status, today's orders) and user-specific lookups (customer by phone).
+
+**IDB cache invalidation:** after a successful POST write, call `idbDelete(actionName)` with the matching GET action's cache key — `'getMenu'` after `saveMenuItem`, `'getConfig'` after `updateConfig`, `'getIngredients'` after `updateStock`. Import `idbDelete` from `src/services/idb.service.js`.
 
 **`src/services/auth.service.js`:** `adminLogin(username, password)`, `adminLogout()`, `getAdminSession()` — session validation lives here; `getAdminSession()` auto-removes expired entries
 
@@ -306,6 +308,7 @@ _Last updated: 2026-06-17_
 - Bottom sheet animations: CartDrawer + DrinkCustomizer slide-up on open, slide-down on dismiss
 - Toast slide-in animation + prefers-reduced-motion support
 - IndexedDB SWR cache (`src/services/idb.service.js` + `gasGetCached` in `gas.service.js`): menu, config, slots, ingredients, batch data served from cache instantly on repeat visits; write-path invalidation on saveMenuItem / updateConfig / updateStock
+- Fixed /admin/batch crash: `getBatchSummary` GAS now returns `[{location, orders}]` array (was plain object); `BatchPage` normalizes stale IDB-cached object shape for graceful migration
 
 ### In Progress
 - _(nothing actively in flight)_
@@ -316,3 +319,4 @@ _Last updated: 2026-06-17_
 - No admin UI for password change (GAS `changePassword` action exists but no frontend)
 - EasySlip verification is optional — if `SLIP_VERIFY_API_KEY` is unset, slip check is skipped silently
 - No push notifications (PWA limitation on iOS below 16.4; no service worker by design)
+- GAS deploy requires manual re-deploy in Apps Script editor after every `clasp push` — `clasp deploy` is blocked by Google domain policy; @HEAD URL does not work for public web app access

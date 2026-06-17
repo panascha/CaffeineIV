@@ -139,7 +139,7 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 
 **UI rules:** responsive-first (≥320px), touch targets ≥44px. No emojis, no filler microcopy. Icons via `lucide-react` with text labels. Airy spacing — content never touches screen edges.
 
-**Tailwind v4 note:** No `tailwind.config.js`. Design tokens are CSS custom properties defined in `src/styles/global.css` — Tailwind has no knowledge of them as semantic classes. Reference tokens via `var(--color-primary)` in inline styles or Tailwind's arbitrary value syntax: `bg-[var(--color-primary)]`, `text-[var(--color-text-muted)]`, `shadow-[var(--shadow-card)]`.
+**Styling convention:** All components use React inline `style={{}}` objects exclusively — zero Tailwind className usage exists in the codebase. Tailwind v4 is imported only for its preflight/reset and to make CSS custom properties available globally. Reference tokens via `var(--color-primary)` in inline style objects, not via Tailwind utility classes.
 
 ## localStorage Keys
 
@@ -199,7 +199,7 @@ GAS Script Properties (set in Apps Script → Project Settings):
 
 **POST actions (no secret):** `login`, `setAdminPassword` (first-run only, blocked once any admin exists)
 
-**POST actions (require secret):** `submitOrder`, `updateStatus`, `uploadDropoffPhoto`, `saveMenuItem`, `updateConfig`, `updateStock`, `submitFeedback`, `topUpWallet`, `changePassword`
+**POST actions (require secret):** `submitOrder`, `updateStatus`, `uploadDropoffPhoto`, `saveMenuItem`, `uploadMenuImage`, `updateConfig`, `updateStock`, `submitFeedback`, `topUpWallet`, `changePassword`
 
 **GET actions:** `getMenu`, `getOrders&date=`, `getOrderStatus&order_id=`, `getConfig`, `getDeliverySlots&from=`, `getCustomer&phone=`, `getIngredients`, `getBatchSummary&date=`, `calcBatchVolumes&date=`, `getWardGrouping&date=`
 
@@ -270,3 +270,48 @@ No service worker — GAS polling requires network. Minimal manifest only.
 ```
 
 iOS: no install prompt — user taps Share → "Add to Home Screen". No push notifications below iOS 16.4.
+
+## Skills
+
+Project-specific slash commands available in Claude Code:
+
+| Skill | Trigger | What it does |
+|---|---|---|
+| `/gas-deploy` | deploy GAS, push backend | `clasp push --force` from `gas/`, checks live URL, reports if manual re-deploy needed |
+| `/update-progress` | update progress, record status | Reads git log, updates `## Project Status` section in CLAUDE.md |
+| `/commit-deploy` | commit and deploy, ship it, push everything | Stages + commits changes, pushes to origin/master (triggers Vercel), and runs `clasp push` if `gas/Code.gs` changed |
+
+## Project Status
+
+_Last updated: 2026-06-17_
+
+### Done
+- Full customer ordering flow: menu → checkout → payment (PromptPay QR + slip upload) → confirm page with 15s polling
+- Admin dashboard: order list by date, status flow, slip viewer, drop-off photo upload
+- Menu manager: CRUD, image upload to Drive, specialty-week toggle
+- Admin calendar: shop open/close, exam/leave/blocked dates
+- Stock/ingredient inventory page
+- Batch packing sorter + volume calculator
+- Ward grouping banner on MenuPage (polls every 60s)
+- Config editor: all config fields (shop_open, announcement, promptpay_number, stamp_threshold, gacha_active, delivery_locations, blocked_dates)
+- Loyalty: stamp checker page, wallet balance page
+- Fast pass (saves usual_order to localStorage, skips form when wallet sufficient)
+- Gacha mode (admin picks drink before confirming order)
+- Wallet top-up via GAS action (admin-side only, no dedicated UI page)
+- Order history (localStorage-backed, shown on HistoryPage)
+- Customer calendar page (blocked/exam dates from config)
+- Anonymous feedback page
+- GAS backend: all actions, EasySlip slip verification, duplicate slip detection, email notifications on new order
+- Sheet-based admin auth (username + password, 8-hour session, ProtectedRoute)
+- Bottom sheet animations: CartDrawer + DrinkCustomizer slide-up on open, slide-down on dismiss
+- Toast slide-in animation + prefers-reduced-motion support
+
+### In Progress
+- _(nothing actively in flight)_
+
+### Pending / Known Gaps
+- Language toggle (EN/TH): `civ_lang` localStorage key defined, i18n planned, not yet implemented in any component
+- No admin UI for wallet top-up (GAS `topUpWallet` action exists but no frontend page)
+- No admin UI for password change (GAS `changePassword` action exists but no frontend)
+- EasySlip verification is optional — if `SLIP_VERIFY_API_KEY` is unset, slip check is skipped silently
+- No push notifications (PWA limitation on iOS below 16.4; no service worker by design)

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X, Minus, Plus } from 'lucide-react'
 import { formatPrice } from '../../utils/helpers.js'
 import { useCart } from '../../context/CartContext.jsx'
@@ -22,9 +22,15 @@ export default function DrinkCustomizer({ item, onClose }) {
   const [milk, setMilk] = useState(milks[0] || '')
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState('')
+  const [closing, setClosing] = useState(false)
 
   const oatSurcharge = milk === 'oat' ? (item.oat_surcharge_thb || 0) : 0
   const unitPrice = item.base_price_thb + oatSurcharge
+
+  function handleClose() {
+    setClosing(true)
+    setTimeout(() => onClose(), 250)
+  }
 
   function handleAdd() {
     addItem({
@@ -40,17 +46,20 @@ export default function DrinkCustomizer({ item, onClose }) {
     onClose()
   }
 
+  const overlayAnim = closing ? 'fadeOut 250ms ease-in forwards' : 'fadeIn 200ms ease-out'
+  const sheetAnim   = closing ? 'slideDown 250ms ease-in forwards' : 'slideUp 300ms ease-out'
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(44,26,14,0.4)' }} />
-      <div style={{ position: 'relative', background: '#fff', borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem 1rem', boxShadow: '0 -4px 24px rgba(44,26,14,0.10)', maxHeight: '90vh', overflowY: 'auto', maxWidth: '480px', width: '100%', margin: '0 auto' }}>
+      <div onClick={handleClose} style={{ position: 'absolute', inset: 0, background: 'rgba(44,26,14,0.4)', animation: overlayAnim }} />
+      <div style={{ position: 'relative', background: '#fff', borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem 1rem', boxShadow: '0 -4px 24px rgba(44,26,14,0.10)', maxHeight: '90vh', overflowY: 'auto', maxWidth: '480px', width: '100%', margin: '0 auto', animation: sheetAnim }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#2C1A0E' }}>{item.name}</h2>
             {item.name_th && <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#8C6A52' }}>{item.name_th}</p>}
           </div>
-          <button onClick={onClose} style={{ background: '#F5EDE3', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={handleClose} style={{ background: '#F5EDE3', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={18} color="#2C1A0E" />
           </button>
         </div>

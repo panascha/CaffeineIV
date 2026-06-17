@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { X, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react'
 import { useCart, itemKey } from '../../context/CartContext.jsx'
 import { formatPrice } from '../../utils/helpers.js'
@@ -8,24 +9,38 @@ const MILK_LABELS = { fresh: 'Fresh', oat: 'Oat', none: 'No milk' }
 export default function CartDrawer({ open, onClose }) {
   const { items, updateQty, removeItem, total, count } = useCart()
   const navigate = useNavigate()
+  const [visible, setVisible] = useState(open)
+  const [closing, setClosing] = useState(false)
+
+  useEffect(() => {
+    if (open) { setVisible(true); setClosing(false) }
+  }, [open])
+
+  function handleClose() {
+    setClosing(true)
+    setTimeout(() => { setVisible(false); onClose() }, 250)
+  }
 
   function handleCheckout() {
     onClose()
     navigate('/checkout')
   }
 
-  if (!open) return null
+  if (!visible) return null
+
+  const overlayAnim = closing ? 'fadeOut 250ms ease-in forwards' : 'fadeIn 200ms ease-out'
+  const sheetAnim   = closing ? 'slideDown 250ms ease-in forwards' : 'slideUp 300ms ease-out'
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(44,26,14,0.4)' }} />
-      <div style={{ position: 'relative', background: '#fff', borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem 1rem', boxShadow: '0 -4px 24px rgba(44,26,14,0.10)', maxHeight: '80vh', display: 'flex', flexDirection: 'column', maxWidth: '480px', width: '100%', margin: '0 auto' }}>
+      <div onClick={handleClose} style={{ position: 'absolute', inset: 0, background: 'rgba(44,26,14,0.4)', animation: overlayAnim }} />
+      <div style={{ position: 'relative', background: '#fff', borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem 1rem', boxShadow: '0 -4px 24px rgba(44,26,14,0.10)', maxHeight: '80vh', display: 'flex', flexDirection: 'column', maxWidth: '480px', width: '100%', margin: '0 auto', animation: sheetAnim }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ShoppingBag size={20} color="#7C3A1E" />
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#2C1A0E' }}>Cart ({count})</h2>
           </div>
-          <button onClick={onClose} style={{ background: '#F5EDE3', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={handleClose} style={{ background: '#F5EDE3', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={18} color="#2C1A0E" />
           </button>
         </div>

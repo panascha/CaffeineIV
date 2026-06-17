@@ -25,7 +25,8 @@ export default function DrinkCustomizer({ item, onClose }) {
   const [closing, setClosing] = useState(false)
 
   const oatSurcharge = milk === 'oat' ? (item.oat_surcharge_thb || 0) : 0
-  const unitPrice = item.base_price_thb + oatSurcharge
+  const beanSurcharge = parseBeanSurcharge(bean)
+  const unitPrice = item.base_price_thb + oatSurcharge + beanSurcharge
 
   function handleClose() {
     setClosing(true)
@@ -37,7 +38,7 @@ export default function DrinkCustomizer({ item, onClose }) {
       id: item.item_id,
       name: item.name,
       qty,
-      bean: beans.length > 0 ? bean : undefined,
+      bean: beans.length > 0 ? bean.replace(/\s*\(\+\d+\)/, '').trim() : undefined,
       sweet: SWEET_OPTIONS.some(s => s.value === sweet) ? sweet : 50,
       milk: milks.length > 0 ? milk : undefined,
       price: unitPrice,
@@ -64,13 +65,19 @@ export default function DrinkCustomizer({ item, onClose }) {
           </button>
         </div>
 
-        {/* Bean */}
+        {/* Coffee Type */}
         {beans.length > 1 && (
-          <Section label="Bean">
+          <Section label="Coffee Type">
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {beans.map(b => (
-                <Chip key={b} active={bean === b} onClick={() => setBean(b)}>{b}</Chip>
-              ))}
+              {beans.map(b => {
+                const label = b.replace(/\s*\(\+\d+\)/, '').trim()
+                const sur = parseBeanSurcharge(b)
+                return (
+                  <Chip key={b} active={bean === b} onClick={() => setBean(b)}>
+                    {label}{sur > 0 ? ` +฿${sur}` : ''}
+                  </Chip>
+                )
+              })}
             </div>
           </Section>
         )}
@@ -126,6 +133,11 @@ export default function DrinkCustomizer({ item, onClose }) {
       </div>
     </div>
   )
+}
+
+function parseBeanSurcharge(name) {
+  const m = name?.match(/\(\+(\d+)\)/)
+  return m ? Number(m[1]) : 0
 }
 
 function Section({ label, children }) {

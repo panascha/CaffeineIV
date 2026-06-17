@@ -47,18 +47,30 @@ export function CartProvider({ children }) {
     localStorage.removeItem(STORAGE_KEY)
   }, [])
 
+  const updateItem = useCallback((oldKey, newData) => {
+    setItems(prev => {
+      const filtered = prev.filter(i => itemKey(i) !== oldKey)
+      const newKey = itemKey(newData)
+      const existing = filtered.find(i => itemKey(i) === newKey)
+      if (existing) {
+        return filtered.map(i => itemKey(i) === newKey ? { ...i, qty: i.qty + newData.qty } : i)
+      }
+      return [...filtered, newData]
+    })
+  }, [])
+
   const total = items.reduce((sum, i) => sum + i.price * i.qty, 0)
   const count = items.reduce((sum, i) => sum + i.qty, 0)
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQty, clearCart, total, count, itemKey }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateQty, updateItem, clearCart, total, count, itemKey }}>
       {children}
     </CartContext.Provider>
   )
 }
 
 export function itemKey(item) {
-  return `${item.id}|${item.bean ?? ''}|${item.sweet ?? ''}|${item.milk ?? ''}`
+  return `${item.id}|${item.bean ?? ''}|${item.sweet ?? ''}|${item.milk ?? ''}|${item.add_on ?? ''}`
 }
 
 export function useCart() {

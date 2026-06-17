@@ -40,6 +40,77 @@ function Field({ label, children }) {
   )
 }
 
+function NoSlotsRequest() {
+  const [phone, setPhone] = useState('')
+  const [date, setDate] = useState('')
+  const [time, setTime] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const norm = normalizePhone(phone)
+    if (!validatePhone(norm)) { setError('Enter a valid Thai mobile number'); return }
+    if (!date) { setError('Select a preferred date'); return }
+    setError('')
+    setSubmitting(true)
+    try {
+      const res = await gasPost('requestDeliverySlot', { phone: norm, preferred_date: date, preferred_time: time })
+      if (res.status === 'success') { setDone(true) }
+      else { setError(res.message || 'Failed to send request') }
+    } catch {
+      setError('Connection error. Try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (done) {
+    return (
+      <div style={{ marginTop: '12px', padding: '12px 14px', background: '#F5EDE3', borderRadius: '0.875rem' }}>
+        <p style={{ margin: 0, fontSize: '14px', color: '#2E7D32', fontWeight: 600 }}>Request sent!</p>
+        <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#8C6A52' }}>We'll reach out when a slot opens.</p>
+      </div>
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <p style={{ margin: '0 0 4px', fontSize: '14px', color: '#C0392B' }}>No delivery slots available right now.</p>
+      <p style={{ margin: 0, fontSize: '13px', color: '#8C6A52' }}>Request a slot and we'll notify you when one opens.</p>
+      <input
+        value={phone}
+        onChange={e => setPhone(e.target.value)}
+        placeholder="Phone number"
+        inputMode="tel"
+        style={inputStyle}
+      />
+      <input
+        type="date"
+        value={date}
+        min={getTodayStr()}
+        onChange={e => setDate(e.target.value)}
+        style={inputStyle}
+      />
+      <input
+        value={time}
+        onChange={e => setTime(e.target.value)}
+        placeholder="Preferred time (e.g. morning, 9:00–11:00)"
+        style={inputStyle}
+      />
+      {error && <p style={{ margin: 0, fontSize: '13px', color: '#C0392B' }}>{error}</p>}
+      <button
+        type="submit"
+        disabled={submitting}
+        style={{ background: '#7C3A1E', color: '#fff', border: 'none', borderRadius: '9999px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: submitting ? 'default' : 'pointer', opacity: submitting ? 0.7 : 1 }}
+      >
+        {submitting ? 'Sending…' : 'Request slot'}
+      </button>
+    </form>
+  )
+}
+
 export default function CheckoutPage() {
   const navigate = useNavigate()
   const { items, total, count, clearCart } = useCart()
@@ -230,8 +301,8 @@ export default function CheckoutPage() {
           <p style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: '#2C1A0E' }}>Delivery</p>
           {slotsLoading ? (
             <p style={{ margin: 0, fontSize: '14px', color: '#8C6A52' }}>Loading slots…</p>
-          ) : slots.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '14px', color: '#C0392B' }}>No delivery slots available right now.</p>
+          ) : filteredSlots.length === 0 ? (
+            <NoSlotsRequest />
           ) : (
             <>
               <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '12px', paddingBottom: '2px', scrollbarWidth: 'none' }}>

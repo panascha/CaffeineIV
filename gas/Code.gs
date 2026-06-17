@@ -67,9 +67,10 @@ function doPost(e) {
       case 'updateConfig':       return updateConfig(body.data);
       case 'updateStock':        return updateStock(body.data);
       case 'submitFeedback':     return submitFeedback(body.data);
-      case 'topUpWallet':        return topUpWallet(body.data);
-      case 'changePassword':     return changePassword(body.data);
-      default:                   return err('UNKNOWN_ACTION');
+      case 'topUpWallet':           return topUpWallet(body.data);
+      case 'changePassword':        return changePassword(body.data);
+      case 'requestDeliverySlot':   return requestDeliverySlot_(body.data);
+      default:                      return err('UNKNOWN_ACTION');
     }
   } catch (ex) {
     return err(ex.message);
@@ -519,4 +520,15 @@ function incrementSlotBooked_(date, slot_id) {
       return;
     }
   }
+}
+
+function requestDeliverySlot_(data) {
+  var sh = sheet('slot_requests');
+  sh.appendRow([
+    data.phone || '',
+    data.preferred_date || '',
+    data.preferred_time || '',
+    new Date().toISOString(),
+  ]);
+  return ok(null);
 }

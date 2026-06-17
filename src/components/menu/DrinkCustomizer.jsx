@@ -12,21 +12,27 @@ const SWEET_OPTIONS = [
 
 const MILK_LABELS = { fresh: 'Fresh milk', oat: 'Oat milk', none: 'No milk' }
 
-export default function DrinkCustomizer({ item, onClose }) {
+export default function DrinkCustomizer({ item, onClose, initialValues = null, editKey = null, onUpdate = null }) {
   const { addItem } = useCart()
   const beans = item.bean_options ? (typeof item.bean_options === 'string' ? JSON.parse(item.bean_options) : item.bean_options) : []
   const milks = item.milk_options ? (typeof item.milk_options === 'string' ? JSON.parse(item.milk_options) : item.milk_options) : []
 
-  const [bean, setBean] = useState(beans[0] || '')
-  const [sweet, setSweet] = useState(50)
-  const [milk, setMilk] = useState(milks[0] || '')
-  const [qty, setQty] = useState(1)
-  const [note, setNote] = useState('')
+  const [bean, setBean] = useState(() => {
+    if (initialValues?.bean) {
+      return beans.find(b => b.replace(/\s*\(\+\d+\)/, '').trim() === initialValues.bean) || beans[0] || ''
+    }
+    return beans[0] || ''
+  })
+  const [sweet, setSweet] = useState(initialValues?.sweet ?? 50)
+  const [milk, setMilk] = useState(initialValues?.milk ?? (milks[0] || ''))
+  const [qty, setQty] = useState(initialValues?.qty ?? 1)
+  const [addOn, setAddOn] = useState(initialValues?.add_on ?? '')
+  const [addOnPrice, setAddOnPrice] = useState(initialValues?.add_on_price ?? 0)
   const [closing, setClosing] = useState(false)
 
   const oatSurcharge = milk === 'oat' ? (item.oat_surcharge_thb || 0) : 0
   const beanSurcharge = parseBeanSurcharge(bean)
-  const unitPrice = item.base_price_thb + oatSurcharge + beanSurcharge
+  const unitPrice = item.base_price_thb + oatSurcharge + beanSurcharge + (addOnPrice || 0)
 
   function handleClose() {
     setClosing(true)
@@ -34,7 +40,7 @@ export default function DrinkCustomizer({ item, onClose }) {
   }
 
   function handleAdd() {
-    addItem({
+    const cartItem = {
       id: item.item_id,
       name: item.name,
       qty,
@@ -42,9 +48,15 @@ export default function DrinkCustomizer({ item, onClose }) {
       sweet: SWEET_OPTIONS.some(s => s.value === sweet) ? sweet : 50,
       milk: milks.length > 0 ? milk : undefined,
       price: unitPrice,
-      note: note.trim() || undefined,
-    })
-    onClose()
+      add_on: addOn.trim() || undefined,
+      add_on_price: addOnPrice > 0 ? addOnPrice : undefined,
+    }
+    if (editKey && onUpdate) {
+      onUpdate(editKey, cartItem)
+    } else {
+      addItem(cartItem)
+      onClose()
+    }
   }
 
   const overlayAnim = closing ? 'fadeOut 250ms ease-in forwards' : 'fadeIn 200ms ease-out'
@@ -104,13 +116,25 @@ export default function DrinkCustomizer({ item, onClose }) {
           </Section>
         )}
 
-        {/* Note */}
-        <Section label="Note (optional)">
-          <input
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            placeholder="e.g. less sweet, no ice"
+        {/* Add-on */}
+        <Section label="Add-on (optional)">
+          <textarea
+            value={addOn}
+            onChange={e => setAddOn(e.target.value)}
+            placeholder="e.g. extra espresso shot, syrup"
             maxLength={100}
+            rows={2}
+            style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E8D5C0', borderRadius: '0.875rem', padding: '10px 14px', fontSize: '15px', background: '#fff', color: '#2C1A0E', outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+          />
+        </Section>
+        <Section label="Add-on price (฿)">
+          <input
+            type="number"
+            value={addOnPrice || ''}
+            onChange={e => setAddOnPrice(Math.max(0, Number(e.target.value) || 0))}
+            placeholder="0"
+            min={0}
+            step={1}
             style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E8D5C0', borderRadius: '0.875rem', padding: '10px 14px', fontSize: '15px', background: '#fff', color: '#2C1A0E', outline: 'none' }}
           />
         </Section>
@@ -127,7 +151,7 @@ export default function DrinkCustomizer({ item, onClose }) {
             </button>
           </div>
           <button onClick={handleAdd} style={{ flex: 1, background: '#7C3A1E', color: '#fff', border: 'none', borderRadius: '9999px', padding: '14px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(124,58,30,0.25)' }}>
-            Add to cart — {formatPrice(unitPrice * qty)}
+            {editKey ? 'Update cart' : 'Add to cart'} — {formatPrice(unitPrice * qty)}
           </button>
         </div>
       </div>

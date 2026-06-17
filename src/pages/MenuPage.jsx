@@ -151,7 +151,7 @@ export default function MenuPage() {
       </div>
 
       {selected && <DrinkCustomizer item={selected} onClose={() => setSelected(null)} />}
-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} menuItems={menu} />
       <Navbar />
     </div>
   )

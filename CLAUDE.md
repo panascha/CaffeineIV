@@ -296,7 +296,7 @@ _Last updated: 2026-06-17_
 - Batch packing sorter + volume calculator
 - Ward grouping banner on MenuPage (polls every 60s)
 - Config editor: all config fields (shop_open, announcement, promptpay_number, stamp_threshold, gacha_active, delivery_locations, blocked_dates)
-- Loyalty: stamp checker page, wallet balance page
+- Loyalty: stamp checker page, wallet balance page (routes exist but tabs hidden from nav)
 - Fast pass (saves usual_order to localStorage, skips form when wallet sufficient)
 - Gacha mode (admin picks drink before confirming order)
 - Wallet top-up via GAS action (admin-side only, no dedicated UI page)
@@ -309,14 +309,19 @@ _Last updated: 2026-06-17_
 - Toast slide-in animation + prefers-reduced-motion support
 - IndexedDB SWR cache (`src/services/idb.service.js` + `gasGetCached` in `gas.service.js`): menu, config, slots, ingredients, batch data served from cache instantly on repeat visits; write-path invalidation on saveMenuItem / updateConfig / updateStock
 - Fixed /admin/batch crash: `getBatchSummary` GAS now returns `[{location, orders}]` array (was plain object); `BatchPage` normalizes stale IDB-cached object shape for graceful migration
+- Bean surcharge pricing: `(+N)` notation in bean_options names parsed automatically; surcharge added to unit price in DrinkCustomizer; chips show clean label + `+฿N` badge
+- Renamed "Bean" section to "Coffee Type" in DrinkCustomizer
+- PWA install banner on MenuPage: Android triggers native prompt, iOS shows Share → Add to Home Screen toast; auto-hides when already installed or dismissed
 
 ### In Progress
 - _(nothing actively in flight)_
 
 ### Pending / Known Gaps
+- Stamps and Wallet tabs hidden from bottom nav (routes still exist at /stamps and /wallet — re-add to Navbar.jsx to restore)
 - Language toggle (EN/TH): `civ_lang` localStorage key defined, i18n planned, not yet implemented in any component
 - No admin UI for wallet top-up (GAS `topUpWallet` action exists but no frontend page)
 - No admin UI for password change (GAS `changePassword` action exists but no frontend)
 - EasySlip verification is optional — if `SLIP_VERIFY_API_KEY` is unset, slip check is skipped silently
 - No push notifications (PWA limitation on iOS below 16.4; no service worker by design)
 - GAS deploy requires manual re-deploy in Apps Script editor after every `clasp push` — `clasp deploy` is blocked by Google domain policy; @HEAD URL does not work for public web app access
+- Americano/Latte item descriptions in Sheet still say "price adjusted at checkout" — stale after bean surcharge automation was added

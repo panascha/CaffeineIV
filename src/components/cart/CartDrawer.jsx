@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
-import { X, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react'
+import { X, Minus, Plus, Trash2, ShoppingBag, Pencil } from 'lucide-react'
 import { useCart, itemKey } from '../../context/CartContext.jsx'
 import { formatPrice } from '../../utils/helpers.js'
 import { useNavigate } from 'react-router-dom'
+import DrinkCustomizer from '../menu/DrinkCustomizer.jsx'
 
 const MILK_LABELS = { fresh: 'Fresh', oat: 'Oat', none: 'No milk' }
 
-export default function CartDrawer({ open, onClose }) {
-  const { items, updateQty, removeItem, total, count } = useCart()
+export default function CartDrawer({ open, onClose, menuItems = [] }) {
+  const { items, updateQty, removeItem, updateItem, total, count } = useCart()
+  const [editingItem, setEditingItem] = useState(null)
   const navigate = useNavigate()
   const [visible, setVisible] = useState(open)
   const [closing, setClosing] = useState(false)
@@ -32,6 +34,7 @@ export default function CartDrawer({ open, onClose }) {
   const sheetAnim   = closing ? 'slideDown 250ms ease-in forwards' : 'slideUp 300ms ease-out'
 
   return (
+    <>
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
       <div onClick={handleClose} style={{ position: 'absolute', inset: 0, background: 'rgba(44,26,14,0.4)', animation: overlayAnim }} />
       <div style={{ position: 'relative', background: '#fff', borderRadius: '1.5rem 1.5rem 0 0', padding: '1.5rem 1rem', boxShadow: '0 -4px 24px rgba(44,26,14,0.10)', maxHeight: '80vh', display: 'flex', flexDirection: 'column', maxWidth: '480px', width: '100%', margin: '0 auto', animation: sheetAnim }}>
@@ -62,9 +65,23 @@ export default function CartDrawer({ open, onClose }) {
                       <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#8C6A52' }}>
                         {[item.bean, item.sweet != null ? `${item.sweet}%` : null, MILK_LABELS[item.milk] || item.milk].filter(Boolean).join(' · ')}
                       </p>
+                      {item.add_on && (
+                        <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#8C6A52' }}>
+                          {item.add_on}{item.add_on_price ? ` +฿${item.add_on_price}` : ''}
+                        </p>
+                      )}
                       <p style={{ margin: '4px 0 0', fontSize: '14px', fontWeight: 600, color: '#7C3A1E' }}>{formatPrice(item.price)}</p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        onClick={() => {
+                          const menuItem = menuItems.find(m => m.item_id === item.id)
+                          if (menuItem) setEditingItem({ menuItem, cartItem: item })
+                        }}
+                        style={{ background: '#F5EDE3', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Pencil size={13} color="#7C3A1E" />
+                      </button>
                       <button onClick={() => updateQty(key, item.qty - 1)} style={{ background: '#F5EDE3', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Minus size={14} color="#7C3A1E" />
                       </button>
@@ -94,5 +111,15 @@ export default function CartDrawer({ open, onClose }) {
         )}
       </div>
     </div>
+    {editingItem && (
+      <DrinkCustomizer
+        item={editingItem.menuItem}
+        initialValues={editingItem.cartItem}
+        editKey={itemKey(editingItem.cartItem)}
+        onUpdate={(oldKey, newData) => { updateItem(oldKey, newData); setEditingItem(null) }}
+        onClose={() => setEditingItem(null)}
+      />
+    )}
+    </>
   )
 }

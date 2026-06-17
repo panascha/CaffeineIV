@@ -63,6 +63,7 @@ function doPost(e) {
       case 'updateStatus':       return updateStatus(body.data);
       case 'uploadDropoffPhoto': return uploadDropoffPhoto(body.data);
       case 'saveMenuItem':       return saveMenuItem(body.data);
+      case 'uploadMenuImage':    return uploadMenuImage(body.data);
       case 'updateConfig':       return updateConfig(body.data);
       case 'updateStock':        return updateStock(body.data);
       case 'submitFeedback':     return submitFeedback(body.data);
@@ -411,7 +412,13 @@ function saveToDrive(base64, filename) {
   const folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
   const file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return file.getUrl();
+  return `https://drive.google.com/uc?export=view&id=${file.getId()}`;
+}
+
+function uploadMenuImage(data) {
+  if (!data.base64) return err('MISSING_BASE64');
+  const url = saveToDrive(data.base64, data.filename || `menu_${Date.now()}.jpg`);
+  return ok({ url });
 }
 
 // ── Slip Verification ─────────────────────────────────────────

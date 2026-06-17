@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react'
-import { Plus, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, X, ImagePlus } from 'lucide-react'
 import { gasGet, gasPost } from '../../services/gas.service.js'
-import { formatPrice } from '../../utils/helpers.js'
+import { formatPrice, compressImage } from '../../utils/helpers.js'
 import { useToast } from '../../components/Toast.jsx'
 import AdminNav from '../../components/admin/AdminNav.jsx'
 
 const BLANK_ITEM = {
   item_id: '', name: '', name_th: '', base_price_thb: '', category: '',
-  description: '', available: true, is_specialty_week: false,
+  description: '', image_url: '', available: true, is_specialty_week: false,
   bean_options: '', milk_options: '', oat_surcharge_thb: '', ingredients_used: '',
 }
 
@@ -25,6 +25,8 @@ export default function MenuManagerPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(null)
   const [form, setForm] = useState(null)
+  const [imageFile, setImageFile] = useState(null)
+  const fileInputRef = useRef(null)
 
   useEffect(() => { fetchMenu() }, [])
 
@@ -54,23 +56,40 @@ export default function MenuManagerPage() {
 
   function splitCSV(val) { return typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(Boolean) : (Array.isArray(val) ? val : []) }
 
+  async function handleImageChange(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      const compressed = await compressImage(file, 500_000)
+      setImageFile({ base64: compressed, name: `menu_${Date.now()}.jpg` })
+    } catch { show('Image compression failed', 'error') }
+  }
+
   async function saveForm() {
     if (!form.name.trim() || !form.base_price_thb) { show('Name and price are required', 'error'); return }
-    const payload = {
-      ...form,
-      base_price_thb: Number(form.base_price_thb),
-      oat_surcharge_thb: Number(form.oat_surcharge_thb) || 0,
-      item_id: form.item_id || `item_${Date.now()}`,
-      bean_options: splitCSV(form.bean_options),
-      milk_options: splitCSV(form.milk_options),
-      ingredients_used: splitCSV(form.ingredients_used),
-    }
     setSaving('form')
     try {
+      let imageUrl = form.image_url || ''
+      if (imageFile) {
+        const imgRes = await gasPost('uploadMenuImage', { base64: imageFile.base64, filename: imageFile.name })
+        if (imgRes.status === 'success') imageUrl = imgRes.data.url
+        else { show('Image upload failed', 'error'); setSaving(null); return }
+      }
+      const payload = {
+        ...form,
+        image_url: imageUrl,
+        base_price_thb: Number(form.base_price_thb),
+        oat_surcharge_thb: Number(form.oat_surcharge_thb) || 0,
+        item_id: form.item_id || `item_${Date.now()}`,
+        bean_options: splitCSV(form.bean_options),
+        milk_options: splitCSV(form.milk_options),
+        ingredients_used: splitCSV(form.ingredients_used),
+      }
       const res = await gasPost('saveMenuItem', payload)
       if (res.status === 'success') {
         show('Saved', 'success')
         setForm(null)
+        setImageFile(null)
         fetchMenu()
       } else {
         show(res.message || 'Save failed', 'error')
@@ -96,8 +115,29 @@ export default function MenuManagerPage() {
           <div style={{ background: '#fff', borderRadius: '1.25rem', padding: '1rem', boxShadow: '0 2px 12px rgba(44,26,14,0.07)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#2C1A0E' }}>{form.item_id ? 'Edit Item' : 'New Item'}</p>
-              <button onClick={() => setForm(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={18} color="#8C6A52" /></button>
+              <button onClick={() => { setForm(null); setImageFile(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={18} color="#8C6A52" /></button>
             </div>
+
+            {/* Image upload */}
+            <div>
+              <p style={{ margin: '0 0 6px', fontSize: '12px', fontWeight: 500, color: '#8C6A52' }}>Image</p>
+              <div style={{ position: 'relative', width: '100%', height: '140px', borderRadius: '0.875rem', overflow: 'hidden', background: '#F5EDE3', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>
+                {(imageFile?.base64 || form.image_url) ? (
+                  <img src={imageFile?.base64 || form.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                    <ImagePlus size={24} color="#8C6A52" />
+                    <span style={{ fontSize: '13px', color: '#8C6A52' }}>Tap to upload</span>
+                  </div>
+                )}
+                <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: '#7C3A1E', borderRadius: '9999px', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <ImagePlus size={12} color="#fff" />
+                  <span style={{ fontSize: '11px', color: '#fff', fontWeight: 600 }}>{imageFile ? 'Change' : form.image_url ? 'Replace' : 'Upload'}</span>
+                </div>
+              </div>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
+            </div>
+
             {[
               ['Name (EN)', 'name', 'text'],
               ['Name (TH)', 'name_th', 'text'],
@@ -125,7 +165,9 @@ export default function MenuManagerPage() {
           <p style={{ fontSize: '15px', color: '#8C6A52', textAlign: 'center', padding: '2rem 0' }}>Loading…</p>
         ) : (
           menu.map(item => (
-            <div key={item.item_id} style={{ background: '#fff', borderRadius: '1.25rem', padding: '1rem', boxShadow: '0 2px 12px rgba(44,26,14,0.07)' }}>
+            <div key={item.item_id} style={{ background: '#fff', borderRadius: '1.25rem', overflow: 'hidden', boxShadow: '0 2px 12px rgba(44,26,14,0.07)' }}>
+              {item.image_url && <img src={item.image_url} alt={item.name} style={{ width: '100%', height: '120px', objectFit: 'cover' }} />}
+              <div style={{ padding: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                   <p style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#2C1A0E' }}>{item.name}</p>
@@ -148,9 +190,10 @@ export default function MenuManagerPage() {
                   />
                 </div>
               </div>
-              <button onClick={() => setForm({ ...item, bean_options: Array.isArray(item.bean_options) ? item.bean_options.join(',') : item.bean_options || '', milk_options: Array.isArray(item.milk_options) ? item.milk_options.join(',') : item.milk_options || '', ingredients_used: Array.isArray(item.ingredients_used) ? item.ingredients_used.join(',') : item.ingredients_used || '' })} style={{ marginTop: '8px', background: 'none', border: '1px solid #E8D5C0', borderRadius: '9999px', padding: '4px 14px', fontSize: '13px', color: '#8C6A52', cursor: 'pointer' }}>
+              <button onClick={() => { setImageFile(null); setForm({ ...item, bean_options: Array.isArray(item.bean_options) ? item.bean_options.join(',') : item.bean_options || '', milk_options: Array.isArray(item.milk_options) ? item.milk_options.join(',') : item.milk_options || '', ingredients_used: Array.isArray(item.ingredients_used) ? item.ingredients_used.join(',') : item.ingredients_used || '' }) }} style={{ marginTop: '8px', background: 'none', border: '1px solid #E8D5C0', borderRadius: '9999px', padding: '4px 14px', fontSize: '13px', color: '#8C6A52', cursor: 'pointer' }}>
                 Edit
               </button>
+              </div>
             </div>
           ))
         )}

@@ -7,6 +7,7 @@ import BatchSorter from '../../components/admin/BatchSorter.jsx'
 export default function BatchPage() {
   const [date, setDate] = useState(getTodayStr())
   const [batches, setBatches] = useState([])
+  const [volumes, setVolumes] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { fetchBatch() }, [date])
@@ -14,8 +15,12 @@ export default function BatchPage() {
   async function fetchBatch() {
     setLoading(true)
     try {
-      const res = await gasGet('getBatchSummary', { date })
-      if (res.status === 'success') setBatches(res.data || [])
+      const [batchRes, volRes] = await Promise.all([
+        gasGet('getBatchSummary', { date }),
+        gasGet('calcBatchVolumes', { date }),
+      ])
+      if (batchRes.status === 'success') setBatches(batchRes.data || [])
+      if (volRes.status === 'success') setVolumes(volRes.data || {})
     } catch {}
     setLoading(false)
   }
@@ -48,7 +53,22 @@ export default function BatchPage() {
         {loading ? (
           <p style={{ fontSize: '15px', color: '#8C6A52', textAlign: 'center', padding: '2rem 0' }}>Loading…</p>
         ) : (
-          <BatchSorter batches={batches} />
+          <>
+            <BatchSorter batches={batches} />
+            {volumes && Object.keys(volumes).length > 0 && (
+              <div style={{ background: '#fff', borderRadius: '1.25rem', padding: '1rem', boxShadow: '0 2px 12px rgba(44,26,14,0.07)' }}>
+                <p style={{ margin: '0 0 10px', fontSize: '15px', fontWeight: 600, color: '#2C1A0E' }}>Ingredient Totals</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {Object.entries(volumes).map(([key, qty]) => (
+                    <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                      <span style={{ color: '#2C1A0E' }}>{key.replace(/_/g, ' ')}</span>
+                      <span style={{ color: '#7C3A1E', fontWeight: 600 }}>{qty}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

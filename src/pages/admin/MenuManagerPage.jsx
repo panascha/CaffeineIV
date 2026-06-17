@@ -8,7 +8,7 @@ import AdminNav from '../../components/admin/AdminNav.jsx'
 const BLANK_ITEM = {
   item_id: '', name: '', name_th: '', base_price_thb: '', category: '',
   description: '', available: true, is_specialty_week: false,
-  bean_options: '', milk_options: '', oat_surcharge_thb: '',
+  bean_options: '', milk_options: '', oat_surcharge_thb: '', ingredients_used: '',
 }
 
 const inputStyle = {
@@ -52,6 +52,8 @@ export default function MenuManagerPage() {
     setSaving(null)
   }
 
+  function splitCSV(val) { return typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(Boolean) : (Array.isArray(val) ? val : []) }
+
   async function saveForm() {
     if (!form.name.trim() || !form.base_price_thb) { show('Name and price are required', 'error'); return }
     const payload = {
@@ -59,6 +61,9 @@ export default function MenuManagerPage() {
       base_price_thb: Number(form.base_price_thb),
       oat_surcharge_thb: Number(form.oat_surcharge_thb) || 0,
       item_id: form.item_id || `item_${Date.now()}`,
+      bean_options: splitCSV(form.bean_options),
+      milk_options: splitCSV(form.milk_options),
+      ingredients_used: splitCSV(form.ingredients_used),
     }
     setSaving('form')
     try {
@@ -102,6 +107,7 @@ export default function MenuManagerPage() {
               ['Bean options (comma-separated)', 'bean_options', 'text'],
               ['Milk options (comma-separated)', 'milk_options', 'text'],
               ['Oat surcharge (฿)', 'oat_surcharge_thb', 'number'],
+              ['Ingredients used (IDs, comma-sep)', 'ingredients_used', 'text'],
             ].map(([label, key, type]) => (
               <div key={key}>
                 <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: 500, color: '#8C6A52' }}>{label}</p>
@@ -142,7 +148,7 @@ export default function MenuManagerPage() {
                   />
                 </div>
               </div>
-              <button onClick={() => setForm({ ...item, bean_options: Array.isArray(item.bean_options) ? item.bean_options.join(',') : item.bean_options || '', milk_options: Array.isArray(item.milk_options) ? item.milk_options.join(',') : item.milk_options || '' })} style={{ marginTop: '8px', background: 'none', border: '1px solid #E8D5C0', borderRadius: '9999px', padding: '4px 14px', fontSize: '13px', color: '#8C6A52', cursor: 'pointer' }}>
+              <button onClick={() => setForm({ ...item, bean_options: Array.isArray(item.bean_options) ? item.bean_options.join(',') : item.bean_options || '', milk_options: Array.isArray(item.milk_options) ? item.milk_options.join(',') : item.milk_options || '', ingredients_used: Array.isArray(item.ingredients_used) ? item.ingredients_used.join(',') : item.ingredients_used || '' })} style={{ marginTop: '8px', background: 'none', border: '1px solid #E8D5C0', borderRadius: '9999px', padding: '4px 14px', fontSize: '13px', color: '#8C6A52', cursor: 'pointer' }}>
                 Edit
               </button>
             </div>

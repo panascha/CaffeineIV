@@ -10,11 +10,12 @@ import HistoryPage from './pages/HistoryPage.jsx'
 import StampsPage from './pages/StampsPage.jsx'
 import WalletPage from './pages/WalletPage.jsx'
 import FeedbackPage from './pages/FeedbackPage.jsx'
+import CalendarPage from './pages/CalendarPage.jsx'
 import LoginPage from './pages/admin/LoginPage.jsx'
 import DashboardPage from './pages/admin/DashboardPage.jsx'
 import OrderDetailPage from './pages/admin/OrderDetailPage.jsx'
 import MenuManagerPage from './pages/admin/MenuManagerPage.jsx'
-import CalendarPage from './pages/admin/CalendarPage.jsx'
+import AdminCalendarPage from './pages/admin/CalendarPage.jsx'
 import StockPage from './pages/admin/StockPage.jsx'
 import BatchPage from './pages/admin/BatchPage.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/stamps" element={<StampsPage />} />
         <Route path="/wallet" element={<WalletPage />} />
         <Route path="/feedback" element={<FeedbackPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
 
         {/* Admin */}
         <Route path="/admin/login" element={<LoginPage />} />
@@ -44,7 +46,7 @@ export default function App() {
           <Route path="/admin/dashboard" element={<DashboardPage />} />
           <Route path="/admin/orders/:id" element={<OrderDetailPage />} />
           <Route path="/admin/menu" element={<MenuManagerPage />} />
-          <Route path="/admin/calendar" element={<CalendarPage />} />
+          <Route path="/admin/calendar" element={<AdminCalendarPage />} />
           <Route path="/admin/stock" element={<StockPage />} />
           <Route path="/admin/batch" element={<BatchPage />} />
         </Route>

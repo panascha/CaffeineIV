@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Coffee, ClipboardList, Stamp, Wallet } from 'lucide-react'
+import { Coffee, ClipboardList, Stamp, Wallet, CalendarDays } from 'lucide-react'
 
 const TABS = [
-  { to: '/',        icon: Coffee,         label: 'Menu' },
-  { to: '/history', icon: ClipboardList,  label: 'Orders' },
-  { to: '/stamps',  icon: Stamp,          label: 'Stamps' },
-  { to: '/wallet',  icon: Wallet,         label: 'Wallet' },
+  { to: '/',          icon: Coffee,         label: 'Menu' },
+  { to: '/history',   icon: ClipboardList,  label: 'Orders' },
+  { to: '/stamps',    icon: Stamp,          label: 'Stamps' },
+  { to: '/wallet',    icon: Wallet,         label: 'Wallet' },
+  { to: '/calendar',  icon: CalendarDays,   label: 'Calendar' },
 ]
 
 export default function Navbar() {

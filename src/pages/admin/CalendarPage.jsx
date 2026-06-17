@@ -14,6 +14,9 @@ export default function CalendarPage() {
   const [stampThreshold, setStampThreshold] = useState(10)
   const [gachaActive, setGachaActive] = useState(false)
   const [promptpayNumber, setPromptpayNumber] = useState('')
+  const [deliveryLocations, setDeliveryLocations] = useState([])
+  const [newLocation, setNewLocation] = useState('')
+  const [blockedDates, setBlockedDates] = useState([])
   const [slots, setSlots] = useState([])
   const [configLoading, setConfigLoading] = useState(true)
   const [slotsLoading, setSlotsLoading] = useState(true)
@@ -29,11 +32,14 @@ export default function CalendarPage() {
     try {
       const res = await gasGet('getConfig')
       if (res.status === 'success') {
+        const parseJsonArray = (val) => { try { const a = JSON.parse(val); return Array.isArray(a) ? a : [] } catch { return [] } }
         setShopOpen(isTrue(res.data.shop_open))
         setAnnouncement(res.data.announcement || '')
         setStampThreshold(Number(res.data.stamp_threshold) || 10)
         setGachaActive(isTrue(res.data.gacha_active))
         setPromptpayNumber(res.data.promptpay_number || '')
+        setDeliveryLocations(parseJsonArray(res.data.delivery_locations))
+        setBlockedDates(parseJsonArray(res.data.blocked_dates))
       }
     } catch {}
     setConfigLoading(false)
@@ -57,6 +63,8 @@ export default function CalendarPage() {
         { key: 'stamp_threshold', value: Number(stampThreshold) },
         { key: 'gacha_active', value: gachaActive },
         { key: 'promptpay_number', value: promptpayNumber },
+        { key: 'delivery_locations', value: JSON.stringify(deliveryLocations) },
+        { key: 'blocked_dates', value: JSON.stringify(blockedDates) },
       ]
       const results = await Promise.all(entries.map(e => gasPost('updateConfig', e)))
       if (results.every(r => r.status === 'success')) {
@@ -127,6 +135,47 @@ export default function CalendarPage() {
             <button type="button" onClick={() => setGachaActive(v => !v)} style={{ width: '44px', height: '24px', borderRadius: '9999px', background: gachaActive ? '#7C3A1E' : '#E8D5C0', border: 'none', cursor: 'pointer', position: 'relative' }}>
               <span style={{ position: 'absolute', top: '2px', left: gachaActive ? '22px' : '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#fff', transition: '150ms ease-out', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
             </button>
+          </div>
+
+          <div>
+            <p style={{ margin: '0 0 6px', fontSize: '13px', fontWeight: 500, color: '#8C6A52' }}>Delivery locations</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+              {deliveryLocations.map((loc, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#F5EDE3', borderRadius: '9999px', padding: '4px 10px', fontSize: '13px', color: '#2C1A0E' }}>
+                  <span>{loc}</span>
+                  <button type="button" onClick={() => setDeliveryLocations(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8C6A52', padding: '0 0 0 2px', lineHeight: 1, fontSize: '14px' }}>×</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                value={newLocation}
+                onChange={e => setNewLocation(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newLocation.trim()) { setDeliveryLocations(prev => [...prev, newLocation.trim()]); setNewLocation('') } } }}
+                placeholder="Add location, press Enter"
+                style={{ flex: 1, border: '1px solid #E8D5C0', borderRadius: '0.875rem', padding: '8px 12px', fontSize: '14px', background: '#fff', color: '#2C1A0E', outline: 'none' }}
+              />
+              <button type="button" onClick={() => { if (newLocation.trim()) { setDeliveryLocations(prev => [...prev, newLocation.trim()]); setNewLocation('') } }} style={{ background: '#7C3A1E', color: '#fff', border: 'none', borderRadius: '9999px', padding: '8px 16px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+                Add
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p style={{ margin: '0 0 6px', fontSize: '13px', fontWeight: 500, color: '#8C6A52' }}>Blocked dates (exam / leave)</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+              {blockedDates.map((d, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#FEE2E2', borderRadius: '9999px', padding: '4px 10px', fontSize: '13px', color: '#C0392B' }}>
+                  <span>{d}</span>
+                  <button type="button" onClick={() => setBlockedDates(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#C0392B', padding: '0 0 0 2px', lineHeight: 1, fontSize: '14px' }}>×</button>
+                </div>
+              ))}
+            </div>
+            <input
+              type="date"
+              onChange={e => { const v = e.target.value; if (v && !blockedDates.includes(v)) { setBlockedDates(prev => [...prev, v].sort()); e.target.value = '' } }}
+              style={{ border: '1px solid #E8D5C0', borderRadius: '0.875rem', padding: '8px 12px', fontSize: '14px', background: '#fff', color: '#2C1A0E', outline: 'none' }}
+            />
           </div>
 
           <button onClick={saveConfig} disabled={saving || configLoading} style={{ background: '#7C3A1E', color: '#fff', border: 'none', borderRadius: '9999px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>

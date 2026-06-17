@@ -28,11 +28,13 @@ npm run build     # production build
 npm run preview   # preview production build
 ```
 
+No lint or test scripts exist in `package.json`.
+
 **GAS deployment** (requires `clasp` CLI logged in):
 ```bash
 cd gas && clasp push --force
 ```
-The `.clasp.json` lives inside `gas/`, so clasp must run from that directory.
+The `.clasp.json` lives inside `gas/`, so clasp must run from that directory. After any `clasp push`, re-deploy the Web App in Apps Script editor (Deploy → Manage deployments → update) — otherwise the live URL still runs old code. Deployment must be configured as **Execute as Me, Anyone can access**.
 
 ## Architecture
 
@@ -58,7 +60,7 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 - Slip verification API (EasySlip): called in GAS `doPost` during `submitOrder` — if invalid, auto-reject and notify admin
 - Fast pass: only activates when `localStorage` has `usual_order` + sufficient wallet balance — skips form + slip
 - Wallet: top-up by admin only (manual deposit) — deducted via GAS on order submit
-- Language toggle (EN/TH): simple key lookup from `i18n` object in `localStorage` (`civ_lang` key), no library
+- Language toggle (EN/TH): planned — `civ_lang` key in `localStorage`, simple key lookup from `i18n` object, no library. **Not yet implemented in `src/`.**
 - ConfirmPage polling: 15s interval with request guard, hard stop after 2 hours
 - Ward grouping banner: polls `getWardGrouping` every 60s on MenuPage
 - Gacha: if `is_gacha=TRUE`, seller picks actual drink before changing status to `confirmed`
@@ -72,6 +74,7 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 /stamps    — stamp checker by phone
 /wallet    — prepaid balance by phone
 /feedback  — anonymous feedback
+/calendar  — customer-visible calendar (blocked/exam dates from config)
 ```
 
 **Admin (username/password protected via ProtectedRoute):**
@@ -145,20 +148,32 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 | `civ_cart` | CartContext | `CartItem[]` — persisted cart state |
 | `admin_session` | AuthContext | `{ admin_name, exp }` — 8-hour admin session |
 | `usual_order` | Fast pass | customer's saved order JSON + phone |
-| `civ_lang` | i18n | `"th"` or `"en"` |
+| `civ_lang` | i18n | `"th"` or `"en"` — planned, not yet in source |
 | `civ_history` | HistoryPage | `OrderSummary[]` — client-side order history |
 
-## Implementation State
+## Utils & Services
 
-All pages and components are fully implemented. Nothing is a stub placeholder.
+**`src/utils/helpers.js`:** `formatPrice(thb)`, `formatDate(dateStr)`, `formatDateTime(dateTimeStr)`, `generateOrderId()`, `compressImage(file, maxBytes?)`, `getTodayStr()`, `isCutoffPassed(cutoffDatetime)`
 
-**Customer pages:** MenuPage, CheckoutPage, PaymentPage, ConfirmPage, HistoryPage, StampsPage, WalletPage, FeedbackPage
+**`src/utils/phoneNorm.js`:** `normalizePhone(phone)` (strips `[-\s().]`), `validatePhone(phone)` — call both before any GAS call with a phone number
 
-**Admin pages:** LoginPage, DashboardPage, OrderDetailPage, MenuManagerPage, CalendarPage, StockPage, BatchPage
+**`src/utils/slipHash.js`:** `hashBase64(base64String)` — async SHA-256 of slip image before upload
 
-**Components:** Toast/ToastProvider, StatusBadge, CountdownTimer, PromptPayQR, Navbar, AnnouncementBanner, WardGroupingBanner, StampCard, DrinkCard, DrinkCustomizer, SpecialtyHighlight, CartDrawer, OrderCard, DropoffPhoto, AdminNav, SlipVerifier, BatchSorter, ProtectedRoute
+**`src/utils/promptpay.js`:** `generatePromptPayPayload(phoneOrTaxId, amountThb)` — generates PromptPay EMV QR string with CRC16; phone `0812345678` → `0066812345678` internally
 
-**Note:** `src/components/order/StatusBadge.jsx` duplicates `src/components/StatusBadge.jsx` — use the top-level one.
+**`src/services/gas.service.js`:** `gasGet(action, params?)` / `gasPost(action, data)` — all GAS calls go through these two functions
+
+**`src/services/auth.service.js`:** `adminLogin(username, password)`, `adminLogout()`, `getAdminSession()` — session validation lives here; `getAdminSession()` auto-removes expired entries
+
+## Hook APIs
+
+**`useShop()`** returns: `{ shopOpen, announcement, stampThreshold, gachaActive, promptpayNumber, deliveryLocations, blockedDates, loaded, refetchConfig }`. `promptpayNumber` falls back to `VITE_PROMPTPAY_NUMBER` if the Sheet field is empty. `deliveryLocations` is a `string[]` (empty = free-text fallback). `blockedDates` is a `string[]` of `YYYY-MM-DD` strings.
+
+**`useCart()`** returns: `{ items, addItem(item), removeItem(key), updateQty(key, qty), clearCart(), total, count, itemKey }`. Import `itemKey` directly from `CartContext` when you need it outside the hook.
+
+**`useToast()`** returns: `{ show(message, type?, duration?) }` from `src/components/Toast.jsx`. `type`: `'info'` (default) | `'success'` | `'error'`. Default duration 3000ms. Toast renders above bottom tab bar.
+
+**Component note:** `src/components/order/StatusBadge.jsx` duplicates `src/components/StatusBadge.jsx` — use the top-level one.
 
 ## Data Gotchas
 
@@ -186,7 +201,7 @@ GAS Script Properties (set in Apps Script → Project Settings):
 
 **POST actions (require secret):** `submitOrder`, `updateStatus`, `uploadDropoffPhoto`, `saveMenuItem`, `updateConfig`, `updateStock`, `submitFeedback`, `topUpWallet`, `changePassword`
 
-**GET actions:** `getMenu`, `getOrders&date=`, `getOrderStatus&order_id=`, `getConfig`, `getDeliverySlots&from=`, `getCustomer&phone=`, `getIngredients`, `getBatchSummary&date=`, `getWardGrouping&date=`
+**GET actions:** `getMenu`, `getOrders&date=`, `getOrderStatus&order_id=`, `getConfig`, `getDeliverySlots&from=`, `getCustomer&phone=`, `getIngredients`, `getBatchSummary&date=`, `calcBatchVolumes&date=`, `getWardGrouping&date=`
 
 **Key GAS functions in `gas/Code.gs`:**
 
@@ -222,9 +237,9 @@ GAS Script Properties (set in Apps Script → Project Settings):
 
 - `orders`: `order_id`, `created_at`, `delivery_date`, `delivery_slot`, `delivery_location`, `customer_name`, `customer_phone`, `alt_contact`, `items` (JSON), `total_thb`, `note`, `is_gift`, `gift_message`, `is_beta_tester`, `is_fast_pass`, `is_gacha`, `slip_url`, `slip_hash`, `status`, `dropoff_photo_url`, `wallet_used_thb`
 - `customers`: `phone` (PK), `name`, `stamps`, `wallet_thb`, `usual_order` (JSON), `last_location`, `total_orders`, `registered_at`
-- `menu`: `item_id`, `name`, `name_th`, `base_price_thb`, `category`, `description`, `image_url`, `available`, `is_specialty_week`, `bean_options` (JSON), `milk_options` (JSON), `oat_surcharge_thb`
+- `menu`: `item_id`, `name`, `name_th`, `base_price_thb`, `category`, `description`, `image_url`, `available`, `is_specialty_week`, `bean_options` (JSON), `milk_options` (JSON), `oat_surcharge_thb`, `ingredients_used` (JSON array of ingredient IDs)
 - `delivery_slots`: `date`, `slot_id`, `slot_label`, `cut_off_datetime`, `capacity`, `booked`, `active`
-- `config`: `shop_open`, `announcement`, `promptpay_number`, `stamp_threshold`, `gacha_active`
+- `config`: `shop_open`, `announcement`, `promptpay_number`, `stamp_threshold`, `gacha_active`, `delivery_locations` (JSON array string), `blocked_dates` (JSON array of YYYY-MM-DD strings)
 - `slip_hashes`: `hash`, `order_id`, `created_at`
 
 ## PWA

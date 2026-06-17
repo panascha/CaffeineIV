@@ -86,8 +86,9 @@ function doGet(e) {
       case 'getDeliverySlots': return ok(getDeliverySlots(p.from));
       case 'getCustomer':      return ok(getCustomer(p.phone));
       case 'getIngredients':   return ok(getIngredients());
-      case 'getBatchSummary':  return ok(getBatchSummary(p.date));
-      case 'getWardGrouping':  return ok(getWardGrouping(p.date));
+      case 'getBatchSummary':   return ok(getBatchSummary(p.date));
+      case 'getWardGrouping':   return ok(getWardGrouping(p.date));
+      case 'calcBatchVolumes':  return ok(calcBatchVolumes(p.date));
       default:                 return err('UNKNOWN_ACTION');
     }
   } catch (ex) {
@@ -213,30 +214,41 @@ function uploadDropoffPhoto(data) {
 }
 
 function saveMenuItem(data) {
-  const s = sheet('menu');
-  const rows = s.getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === data.item_id) {
-      s.getRange(i + 1, 1, 1, 12).setValues([[
-        data.item_id, data.name, data.name_th, data.base_price_thb,
-        data.category, data.description || '', data.image_url || '',
-        data.available !== false, data.is_specialty_week || false,
-        JSON.stringify(data.bean_options || []),
-        JSON.stringify(data.milk_options || []),
-        data.oat_surcharge_thb || 0,
-      ]]);
-      return ok({ item_id: data.item_id });
-    }
-  }
-  sheet('menu').appendRow([
+  const row = [
     data.item_id, data.name, data.name_th, data.base_price_thb,
     data.category, data.description || '', data.image_url || '',
     data.available !== false, data.is_specialty_week || false,
     JSON.stringify(data.bean_options || []),
     JSON.stringify(data.milk_options || []),
     data.oat_surcharge_thb || 0,
-  ]);
+    JSON.stringify(data.ingredients_used || []),
+  ];
+  const s = sheet('menu');
+  const rows = s.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === data.item_id) {
+      s.getRange(i + 1, 1, 1, row.length).setValues([row]);
+      return ok({ item_id: data.item_id });
+    }
+  }
+  s.appendRow(row);
   return ok({ item_id: data.item_id });
+}
+
+function autoDisableMenuItems(ingredient_id) {
+  const s = sheet('menu');
+  const rows = s.getDataRange().getValues();
+  const headers = rows[0];
+  const availCol = headers.indexOf('available') + 1;
+  const ingUsedCol = headers.indexOf('ingredients_used') + 1;
+  if (availCol < 1 || ingUsedCol < 1) return;
+  for (let i = 1; i < rows.length; i++) {
+    const raw = tryParse(rows[i][ingUsedCol - 1], []);
+    const usedArr = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(',').map(s => s.trim()).filter(Boolean) : [];
+    if (usedArr.includes(ingredient_id)) {
+      s.getRange(i + 1, availCol).setValue(false);
+    }
+  }
 }
 
 function updateConfig(data) {
@@ -258,8 +270,10 @@ function updateStock(data) {
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === data.ingredient_id) {
       const current = Number(rows[i][3]);
-      s.getRange(i + 1, 4).setValue(current + data.delta);
-      return ok({ ingredient_id: data.ingredient_id, new_qty: current + data.delta });
+      const newQty = current + data.delta;
+      s.getRange(i + 1, 4).setValue(newQty);
+      if (newQty <= 0) autoDisableMenuItems(data.ingredient_id);
+      return ok({ ingredient_id: data.ingredient_id, new_qty: newQty });
     }
   }
   return err('INGREDIENT_NOT_FOUND');

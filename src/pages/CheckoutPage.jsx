@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap } from 'lucide-react'
+import { ChevronLeft, Zap, ClipboardList } from 'lucide-react'
 import { useCart } from '../context/CartContext.jsx'
 import { useShop } from '../context/ShopContext.jsx'
 import { gasGet, gasPost } from '../services/gas.service.js'
 import { getTodayStr, isCutoffPassed, formatPrice, generateOrderId } from '../utils/helpers.js'
 import { normalizePhone, validatePhone } from '../utils/phoneNorm.js'
+import CountdownTimer from '../components/CountdownTimer.jsx'
 
 function isSlotAvailable(slot) {
   const active = typeof slot.active === 'boolean' ? slot.active : String(slot.active).toUpperCase() === 'TRUE'
@@ -42,16 +43,13 @@ function Field({ label, children }) {
 export default function CheckoutPage() {
   const navigate = useNavigate()
   const { items, total, count, clearCart } = useCart()
-  const { gachaActive } = useShop()
+  const { gachaActive, deliveryLocations, blockedDates } = useShop()
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [deliveryLocation, setDeliveryLocation] = useState('')
   const [altContact, setAltContact] = useState('')
   const [note, setNote] = useState('')
-  const [isGift, setIsGift] = useState(false)
-  const [giftMessage, setGiftMessage] = useState('')
-
   const [slots, setSlots] = useState([])
   const [slotsLoading, setSlotsLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState('')
@@ -59,6 +57,8 @@ export default function CheckoutPage() {
 
   const [fastPassCustomer, setFastPassCustomer] = useState(null)
   const [showFullForm, setShowFullForm] = useState(false)
+  const [usualOrder, setUsualOrder] = useState(null)
+  const [usualBannerDismissed, setUsualBannerDismissed] = useState(false)
 
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -67,6 +67,10 @@ export default function CheckoutPage() {
     if (count === 0) { navigate('/'); return }
     fetchSlots()
     checkFastPass()
+    try {
+      const raw = localStorage.getItem('usual_order')
+      if (raw) setUsualOrder(JSON.parse(raw))
+    } catch {}
   }, [])
 
   async function fetchSlots() {
@@ -98,12 +102,21 @@ export default function CheckoutPage() {
     } catch {}
   }
 
-  const dates = [...new Set(slots.map(s => s.date))]
-  const slotsForDate = slots.filter(s => s.date === selectedDate)
+  useEffect(() => {
+    if (selectedDate && blockedDates.length > 0 && blockedDates.includes(selectedDate)) {
+      const next = slots.find(s => !blockedDates.includes(s.date))
+      setSelectedDate(next ? next.date : '')
+      setSelectedSlotId(next ? next.slot_id : '')
+    }
+  }, [blockedDates])
+
+  const filteredSlots = slots.filter(s => !blockedDates.includes(s.date))
+  const dates = [...new Set(filteredSlots.map(s => s.date))]
+  const slotsForDate = filteredSlots.filter(s => s.date === selectedDate)
 
   function selectDate(date) {
     setSelectedDate(date)
-    const first = slots.find(s => s.date === date)
+    const first = filteredSlots.find(s => s.date === date)
     if (first) setSelectedSlotId(first.slot_id)
   }
 
@@ -167,8 +180,8 @@ export default function CheckoutPage() {
           items: JSON.stringify(items),
           total_thb: total,
           note: note.trim(),
-          is_gift: isGift,
-          gift_message: isGift ? giftMessage.trim() : '',
+          is_gift: false,
+          gift_message: '',
           is_beta_tester: false,
           is_fast_pass: false,
           is_gacha: gachaActive,
@@ -234,6 +247,10 @@ export default function CheckoutPage() {
                   </button>
                 ))}
               </div>
+              {selectedSlotId && (() => {
+                const sel = slotsForDate.find(s => s.slot_id === selectedSlotId)
+                return sel ? <div style={{ marginTop: '10px' }}><CountdownTimer cutoffDatetime={sel.cut_off_datetime} /></div> : null
+              })()}
             </>
           )}
         </div>
@@ -258,27 +275,51 @@ export default function CheckoutPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {usualOrder && !usualBannerDismissed && (
+              <div style={{ background: '#F5EDE3', borderRadius: '1rem', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ClipboardList size={16} color="#7C3A1E" />
+                  <span style={{ fontSize: '14px', color: '#2C1A0E', fontWeight: 500 }}>Fill from last order ({usualOrder.name || usualOrder.phone})</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                  <button type="button" onClick={() => {
+                    if (usualOrder.name) setName(usualOrder.name)
+                    if (usualOrder.phone) setPhone(usualOrder.phone)
+                    if (usualOrder.location) setDeliveryLocation(usualOrder.location)
+                    if (usualOrder.alt_contact) setAltContact(usualOrder.alt_contact)
+                    setUsualBannerDismissed(true)
+                  }} style={{ background: '#7C3A1E', color: '#fff', border: 'none', borderRadius: '9999px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                    Fill
+                  </button>
+                  <button type="button" onClick={() => setUsualBannerDismissed(true)} style={{ background: 'none', border: 'none', color: '#8C6A52', fontSize: '13px', cursor: 'pointer', padding: '6px 4px' }}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
             <div style={{ background: '#fff', borderRadius: '1.25rem', padding: '1rem', boxShadow: '0 2px 12px rgba(44,26,14,0.07)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <p style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#2C1A0E' }}>Contact</p>
               <Field label="Name"><input required value={name} onChange={e => setName(e.target.value)} placeholder="Your name" style={inputStyle} /></Field>
               <Field label="Phone"><input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="081-234-5678" style={inputStyle} /></Field>
-              <Field label="Delivery location"><input required value={deliveryLocation} onChange={e => setDeliveryLocation(e.target.value)} placeholder="e.g. Ward 5, Room 308" style={inputStyle} /></Field>
+              <Field label="Delivery location">
+                {deliveryLocations.length > 0 ? (
+                  <select required value={deliveryLocation} onChange={e => setDeliveryLocation(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
+                    <option value="">Select location…</option>
+                    {deliveryLocations.map((loc, i) => <option key={i} value={loc}>{loc}</option>)}
+                  </select>
+                ) : (
+                  <input required value={deliveryLocation} onChange={e => setDeliveryLocation(e.target.value)} placeholder="e.g. Ward 5, Room 308" style={inputStyle} />
+                )}
+              </Field>
               <Field label="Alt contact (optional)"><input value={altContact} onChange={e => setAltContact(e.target.value)} placeholder="LINE ID or other phone" style={inputStyle} /></Field>
             </div>
 
             <div style={{ background: '#fff', borderRadius: '1.25rem', padding: '1rem', boxShadow: '0 2px 12px rgba(44,26,14,0.07)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <Field label="Note (optional)"><input value={note} onChange={e => setNote(e.target.value)} placeholder="Allergies, special requests…" maxLength={100} style={inputStyle} /></Field>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '14px', fontWeight: 500, color: '#2C1A0E' }}>Gift order</span>
-                <button type="button" onClick={() => setIsGift(v => !v)} style={{ width: '44px', height: '24px', borderRadius: '9999px', background: isGift ? '#7C3A1E' : '#E8D5C0', border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
-                  <span style={{ position: 'absolute', top: '2px', left: isGift ? '22px' : '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#fff', transition: '150ms ease-out', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                </button>
               </div>
-              {isGift && <Field label="Gift message"><input value={giftMessage} onChange={e => setGiftMessage(e.target.value)} placeholder="A message for the recipient" maxLength={100} style={inputStyle} /></Field>}
-            </div>
 
             {error && <p style={{ margin: 0, fontSize: '13px', color: '#C0392B' }}>{error}</p>}
-            <button type="submit" disabled={slots.length === 0} style={{ background: '#7C3A1E', color: '#fff', border: 'none', borderRadius: '9999px', padding: '16px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(124,58,30,0.25)', opacity: slots.length === 0 ? 0.5 : 1 }}>
+            <button type="submit" disabled={filteredSlots.length === 0} style={{ background: '#7C3A1E', color: '#fff', border: 'none', borderRadius: '9999px', padding: '16px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(124,58,30,0.25)', opacity: filteredSlots.length === 0 ? 0.5 : 1 }}>
               Proceed to Payment — {formatPrice(total)}
             </button>
           </form>

@@ -312,6 +312,10 @@ _Last updated: 2026-06-17_
 - Bean surcharge pricing: `(+N)` notation in bean_options names parsed automatically; surcharge added to unit price in DrinkCustomizer; chips show clean label + `+฿N` badge
 - Renamed "Bean" section to "Coffee Type" in DrinkCustomizer
 - PWA install banner on MenuPage: Android triggers native prompt, iOS shows Share → Add to Home Screen toast; auto-hides when already installed or dismissed
+- Cart item editing: pencil button in CartDrawer reopens DrinkCustomizer pre-filled with existing selections
+- Add-on fields: DrinkCustomizer note replaced with structured add-on textarea + price input; add-on price baked into unit price; displayed separately in CartDrawer
+- No-slots request form: when no delivery slots available at checkout, customers can submit phone/date/time preference saved to `slot_requests` sheet (auto-created on first submission via GAS)
+- `itemKey` extended to include `add_on` field for correct cart dedup; `updateItem` added to CartContext
 
 ### In Progress
 - _(nothing actively in flight)_
@@ -321,6 +325,7 @@ _Last updated: 2026-06-17_
 - Language toggle (EN/TH): `civ_lang` localStorage key defined, i18n planned, not yet implemented in any component
 - No admin UI for wallet top-up (GAS `topUpWallet` action exists but no frontend page)
 - No admin UI for password change (GAS `changePassword` action exists but no frontend)
+- No admin UI to view/act on slot requests (data lands in `slot_requests` sheet — admin reads it directly in Sheets)
 - EasySlip verification is optional — if `SLIP_VERIFY_API_KEY` is unset, slip check is skipped silently
 - No push notifications (PWA limitation on iOS below 16.4; no service worker by design)
 - GAS deploy requires manual re-deploy in Apps Script editor after every `clasp push` — `clasp deploy` is blocked by Google domain policy; @HEAD URL does not work for public web app access

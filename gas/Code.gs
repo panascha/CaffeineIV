@@ -523,7 +523,11 @@ function incrementSlotBooked_(date, slot_id) {
 }
 
 function requestDeliverySlot_(data) {
-  var sh = sheet('slot_requests');
+  var sh = SS.getSheetByName('slot_requests');
+  if (!sh) {
+    sh = SS.insertSheet('slot_requests');
+    sh.appendRow(['phone', 'preferred_date', 'preferred_time', 'created_at']);
+  }
   sh.appendRow([
     data.phone || '',
     data.preferred_date || '',

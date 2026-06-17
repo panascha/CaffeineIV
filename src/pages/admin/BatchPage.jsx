@@ -17,7 +17,14 @@ export default function BatchPage() {
     let batchReady = false, volReady = false
     function checkReady() { if (batchReady && volReady) setLoading(false) }
 
-    gasGetCached('getBatchSummary', { date }, data => { setBatches(data || []); batchReady = true; checkReady() })
+    gasGetCached('getBatchSummary', { date }, data => {
+      const normalized = Array.isArray(data)
+        ? data
+        : Object.entries(data || {}).map(([location, orders]) => ({ location, orders }))
+      setBatches(normalized)
+      batchReady = true
+      checkReady()
+    })
       .catch(() => {}).finally(() => { batchReady = true; checkReady() })
 
     gasGetCached('calcBatchVolumes', { date }, data => { setVolumes(data || {}); volReady = true; checkReady() })

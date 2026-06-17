@@ -305,6 +305,7 @@ _Last updated: 2026-06-17_
 - Sheet-based admin auth (username + password, 8-hour session, ProtectedRoute)
 - Bottom sheet animations: CartDrawer + DrinkCustomizer slide-up on open, slide-down on dismiss
 - Toast slide-in animation + prefers-reduced-motion support
+- IndexedDB SWR cache (`src/services/idb.service.js` + `gasGetCached` in `gas.service.js`): menu, config, slots, ingredients, batch data served from cache instantly on repeat visits; write-path invalidation on saveMenuItem / updateConfig / updateStock
 
 ### In Progress
 - _(nothing actively in flight)_

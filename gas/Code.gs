@@ -389,7 +389,7 @@ function getBatchSummary(date) {
     if (!byLocation[loc]) byLocation[loc] = [];
     byLocation[loc].push(o);
   });
-  return byLocation;
+  return Object.entries(byLocation).map(([location, orders]) => ({ location, orders }));
 }
 
 function getWardGrouping(date) {

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
-import { ShoppingBag } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ShoppingBag, Download, X } from 'lucide-react'
 import { gasGetCached } from '../services/gas.service.js'
 import { useShop } from '../context/ShopContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
+import { useToast } from '../components/Toast.jsx'
 import Navbar from '../components/layout/Navbar.jsx'
 import AnnouncementBanner from '../components/layout/AnnouncementBanner.jsx'
 import WardGroupingBanner from '../components/loyalty/WardGroupingBanner.jsx'
@@ -16,20 +17,47 @@ function isTrue(val) {
   return String(val).toUpperCase() === 'TRUE'
 }
 
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone
+
 export default function MenuPage() {
   const { shopOpen, loaded } = useShop()
   const { count } = useCart()
+  const { show: showToast } = useToast()
   const [menu, setMenu] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeCategory, setActiveCategory] = useState('All')
   const [selected, setSelected] = useState(null)
   const [cartOpen, setCartOpen] = useState(false)
+  const [showInstall, setShowInstall] = useState(!isStandalone)
+  const installPrompt = useRef(null)
 
   useEffect(() => {
     gasGetCached('getMenu', {}, data => { setMenu(data || []); setLoading(false) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    function onBeforeInstall(e) {
+      e.preventDefault()
+      installPrompt.current = e
+    }
+    window.addEventListener('beforeinstallprompt', onBeforeInstall)
+    window.addEventListener('appinstalled', () => setShowInstall(false))
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall)
+    }
+  }, [])
+
+  function handleInstall() {
+    if (installPrompt.current) {
+      installPrompt.current.prompt()
+      installPrompt.current.userChoice.then(() => { installPrompt.current = null; setShowInstall(false) })
+    } else if (isIOS) {
+      showToast('Tap Share (⬆) then "Add to Home Screen"', 'info', 5000)
+    }
+  }
 
   const available = menu.filter(i => isTrue(i.available) || i.available == null)
   const specialties = available.filter(i => isTrue(i.is_specialty_week))
@@ -99,6 +127,25 @@ export default function MenuPage() {
             {filtered.map(item => (
               <DrinkCard key={item.item_id} item={item} onSelect={setSelected} />
             ))}
+          </div>
+        )}
+
+        {/* Install banner */}
+        {showInstall && (
+          <div style={{ margin: '0 1rem', background: '#fff', borderRadius: '1.25rem', boxShadow: '0 2px 12px rgba(44,26,14,0.07)', padding: '1rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '44px', height: '44px', background: '#F5EDE3', borderRadius: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Download size={20} color="#7C3A1E" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#2C1A0E' }}>Add to Home Screen</p>
+              <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#8C6A52' }}>Order faster next time</p>
+            </div>
+            <button onClick={handleInstall} style={{ background: '#7C3A1E', color: '#fff', border: 'none', borderRadius: '9999px', padding: '8px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+              Install
+            </button>
+            <button onClick={() => setShowInstall(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', flexShrink: 0 }}>
+              <X size={16} color="#8C6A52" />
+            </button>
           </div>
         )}
       </div>

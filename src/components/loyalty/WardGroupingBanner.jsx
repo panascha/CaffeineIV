@@ -9,7 +9,8 @@ export default function WardGroupingBanner() {
   async function fetch() {
     try {
       const res = await gasGet('getWardGrouping', { date: getTodayStr() })
-      if (res.status === 'success') setGroups(res.data || [])
+      if (res.status === 'success' && res.data)
+        setGroups(Object.entries(res.data).map(([location, count]) => ({ location, count })))
     } catch {}
   }
 

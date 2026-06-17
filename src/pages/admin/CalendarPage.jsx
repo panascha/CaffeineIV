@@ -11,6 +11,9 @@ export default function CalendarPage() {
 
   const [shopOpen, setShopOpen] = useState(true)
   const [announcement, setAnnouncement] = useState('')
+  const [stampThreshold, setStampThreshold] = useState(10)
+  const [gachaActive, setGachaActive] = useState(false)
+  const [promptpayNumber, setPromptpayNumber] = useState('')
   const [slots, setSlots] = useState([])
   const [configLoading, setConfigLoading] = useState(true)
   const [slotsLoading, setSlotsLoading] = useState(true)
@@ -28,6 +31,9 @@ export default function CalendarPage() {
       if (res.status === 'success') {
         setShopOpen(isTrue(res.data.shop_open))
         setAnnouncement(res.data.announcement || '')
+        setStampThreshold(Number(res.data.stamp_threshold) || 10)
+        setGachaActive(isTrue(res.data.gacha_active))
+        setPromptpayNumber(res.data.promptpay_number || '')
       }
     } catch {}
     setConfigLoading(false)
@@ -45,11 +51,18 @@ export default function CalendarPage() {
   async function saveConfig() {
     setSaving(true)
     try {
-      const res = await gasPost('updateConfig', { shop_open: shopOpen, announcement })
-      if (res.status === 'success') {
+      const entries = [
+        { key: 'shop_open', value: shopOpen },
+        { key: 'announcement', value: announcement },
+        { key: 'stamp_threshold', value: Number(stampThreshold) },
+        { key: 'gacha_active', value: gachaActive },
+        { key: 'promptpay_number', value: promptpayNumber },
+      ]
+      const results = await Promise.all(entries.map(e => gasPost('updateConfig', e)))
+      if (results.every(r => r.status === 'success')) {
         show('Config saved', 'success')
       } else {
-        show(res.message || 'Save failed', 'error')
+        show('Some settings failed to save', 'error')
       }
     } catch { show('Connection error', 'error') }
     setSaving(false)
@@ -86,6 +99,34 @@ export default function CalendarPage() {
               maxLength={200}
               style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E8D5C0', borderRadius: '0.875rem', padding: '10px 12px', fontSize: '14px', background: '#fff', color: '#2C1A0E', outline: 'none' }}
             />
+          </div>
+
+          <div>
+            <p style={{ margin: '0 0 6px', fontSize: '13px', fontWeight: 500, color: '#8C6A52' }}>PromptPay number</p>
+            <input
+              value={promptpayNumber}
+              onChange={e => setPromptpayNumber(e.target.value)}
+              placeholder="e.g. 0942805034"
+              style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E8D5C0', borderRadius: '0.875rem', padding: '10px 12px', fontSize: '14px', background: '#fff', color: '#2C1A0E', outline: 'none' }}
+            />
+          </div>
+
+          <div>
+            <p style={{ margin: '0 0 6px', fontSize: '13px', fontWeight: 500, color: '#8C6A52' }}>Stamps to redeem (threshold)</p>
+            <input
+              type="number"
+              min={1}
+              value={stampThreshold}
+              onChange={e => setStampThreshold(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E8D5C0', borderRadius: '0.875rem', padding: '10px 12px', fontSize: '14px', background: '#fff', color: '#2C1A0E', outline: 'none' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '15px', color: '#2C1A0E' }}>Gacha week</span>
+            <button type="button" onClick={() => setGachaActive(v => !v)} style={{ width: '44px', height: '24px', borderRadius: '9999px', background: gachaActive ? '#7C3A1E' : '#E8D5C0', border: 'none', cursor: 'pointer', position: 'relative' }}>
+              <span style={{ position: 'absolute', top: '2px', left: gachaActive ? '22px' : '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#fff', transition: '150ms ease-out', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+            </button>
           </div>
 
           <button onClick={saveConfig} disabled={saving || configLoading} style={{ background: '#7C3A1E', color: '#fff', border: 'none', borderRadius: '9999px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>

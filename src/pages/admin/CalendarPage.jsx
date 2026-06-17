@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { gasGet, gasPost } from '../../services/gas.service.js'
+import { useState, useEffect, useRef } from 'react'
+import { gasPost, gasGetCached } from '../../services/gas.service.js'
+import { idbDelete } from '../../services/idb.service.js'
 import { getTodayStr, isCutoffPassed } from '../../utils/helpers.js'
 import { useToast } from '../../components/Toast.jsx'
 import AdminNav from '../../components/admin/AdminNav.jsx'
@@ -21,37 +22,41 @@ export default function CalendarPage() {
   const [configLoading, setConfigLoading] = useState(true)
   const [slotsLoading, setSlotsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const configHydratedRef = useRef(false)
 
   useEffect(() => {
     fetchConfig()
     fetchSlots()
   }, [])
 
-  async function fetchConfig() {
+  function fetchConfig() {
     setConfigLoading(true)
-    try {
-      const res = await gasGet('getConfig')
-      if (res.status === 'success') {
-        const parseJsonArray = (val) => { try { const a = JSON.parse(val); return Array.isArray(a) ? a : [] } catch { return [] } }
-        setShopOpen(isTrue(res.data.shop_open))
-        setAnnouncement(res.data.announcement || '')
-        setStampThreshold(Number(res.data.stamp_threshold) || 10)
-        setGachaActive(isTrue(res.data.gacha_active))
-        setPromptpayNumber(res.data.promptpay_number || '')
-        setDeliveryLocations(parseJsonArray(res.data.delivery_locations))
-        setBlockedDates(parseJsonArray(res.data.blocked_dates))
+    const parseJsonArray = (val) => { try { const a = JSON.parse(val); return Array.isArray(a) ? a : [] } catch { return [] } }
+    gasGetCached('getConfig', {}, data => {
+      if (!configHydratedRef.current) {
+        setShopOpen(isTrue(data.shop_open))
+        setAnnouncement(data.announcement || '')
+        setStampThreshold(Number(data.stamp_threshold) || 10)
+        setGachaActive(isTrue(data.gacha_active))
+        setPromptpayNumber(data.promptpay_number || '')
+        setDeliveryLocations(parseJsonArray(data.delivery_locations))
+        setBlockedDates(parseJsonArray(data.blocked_dates))
+        configHydratedRef.current = true
       }
-    } catch {}
-    setConfigLoading(false)
+      setConfigLoading(false)
+    })
+      .catch(() => {})
+      .finally(() => setConfigLoading(false))
   }
 
-  async function fetchSlots() {
+  function fetchSlots() {
     setSlotsLoading(true)
-    try {
-      const res = await gasGet('getDeliverySlots', { from: getTodayStr() })
-      if (res.status === 'success') setSlots(res.data || [])
-    } catch {}
-    setSlotsLoading(false)
+    gasGetCached('getDeliverySlots', { from: getTodayStr() }, data => {
+      setSlots(data || [])
+      setSlotsLoading(false)
+    })
+      .catch(() => {})
+      .finally(() => setSlotsLoading(false))
   }
 
   async function saveConfig() {
@@ -68,6 +73,7 @@ export default function CalendarPage() {
       ]
       const results = await Promise.all(entries.map(e => gasPost('updateConfig', e)))
       if (results.every(r => r.status === 'success')) {
+        idbDelete('getConfig')
         show('Config saved', 'success')
       } else {
         show('Some settings failed to save', 'error')

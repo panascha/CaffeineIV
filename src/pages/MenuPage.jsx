@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ShoppingBag } from 'lucide-react'
-import { gasGet } from '../services/gas.service.js'
+import { gasGetCached } from '../services/gas.service.js'
 import { useShop } from '../context/ShopContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
 import Navbar from '../components/layout/Navbar.jsx'
@@ -26,8 +26,7 @@ export default function MenuPage() {
   const [cartOpen, setCartOpen] = useState(false)
 
   useEffect(() => {
-    gasGet('getMenu')
-      .then(res => { if (res.status === 'success') setMenu(res.data || []) })
+    gasGetCached('getMenu', {}, data => { setMenu(data || []); setLoading(false) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])

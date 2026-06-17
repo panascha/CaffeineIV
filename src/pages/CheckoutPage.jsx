@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Zap, ClipboardList } from 'lucide-react'
 import { useCart } from '../context/CartContext.jsx'
 import { useShop } from '../context/ShopContext.jsx'
-import { gasGet, gasPost } from '../services/gas.service.js'
+import { gasGet, gasPost, gasGetCached } from '../services/gas.service.js'
 import { getTodayStr, isCutoffPassed, formatPrice, generateOrderId } from '../utils/helpers.js'
 import { normalizePhone, validatePhone } from '../utils/phoneNorm.js'
 import CountdownTimer from '../components/CountdownTimer.jsx'
@@ -55,6 +55,7 @@ export default function CheckoutPage() {
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedSlotId, setSelectedSlotId] = useState('')
 
+  const autoSelectedRef = useRef(false)
   const [fastPassCustomer, setFastPassCustomer] = useState(null)
   const [showFullForm, setShowFullForm] = useState(false)
   const [usualOrder, setUsualOrder] = useState(null)
@@ -73,20 +74,20 @@ export default function CheckoutPage() {
     } catch {}
   }, [])
 
-  async function fetchSlots() {
+  function fetchSlots() {
     setSlotsLoading(true)
-    try {
-      const res = await gasGet('getDeliverySlots', { from: getTodayStr() })
-      if (res.status === 'success') {
-        const available = (res.data || []).filter(isSlotAvailable)
-        setSlots(available)
-        if (available.length > 0) {
-          setSelectedDate(available[0].date)
-          setSelectedSlotId(available[0].slot_id)
-        }
+    gasGetCached('getDeliverySlots', { from: getTodayStr() }, data => {
+      const available = (data || []).filter(isSlotAvailable)
+      setSlots(available)
+      if (available.length > 0 && !autoSelectedRef.current) {
+        setSelectedDate(available[0].date)
+        setSelectedSlotId(available[0].slot_id)
+        autoSelectedRef.current = true
       }
-    } catch {}
-    setSlotsLoading(false)
+      setSlotsLoading(false)
+    })
+      .catch(() => {})
+      .finally(() => setSlotsLoading(false))
   }
 
   async function checkFastPass() {

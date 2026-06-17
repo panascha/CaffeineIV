@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { gasGet, gasPost } from '../../services/gas.service.js'
+import { useState, useEffect, useRef } from 'react'
+import { gasPost, gasGetCached } from '../../services/gas.service.js'
+import { idbDelete } from '../../services/idb.service.js'
 import { useToast } from '../../components/Toast.jsx'
 import AdminNav from '../../components/admin/AdminNav.jsx'
 
@@ -9,22 +10,25 @@ export default function StockPage() {
   const [edits, setEdits] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const hydratedRef = useRef(false)
 
   useEffect(() => { fetchIngredients() }, [])
 
-  async function fetchIngredients() {
+  function fetchIngredients() {
     setLoading(true)
-    try {
-      const res = await gasGet('getIngredients')
-      if (res.status === 'success') {
-        const data = res.data || []
-        setIngredients(data)
+    gasGetCached('getIngredients', {}, data => {
+      if (!hydratedRef.current) {
+        const list = data || []
+        setIngredients(list)
         const init = {}
-        data.forEach(i => { init[i.ingredient_id || i.name] = i.stock_qty ?? '' })
+        list.forEach(i => { init[i.ingredient_id || i.name] = i.stock_qty ?? '' })
         setEdits(init)
+        hydratedRef.current = true
       }
-    } catch {}
-    setLoading(false)
+      setLoading(false)
+    })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }
 
   async function handleSave() {
@@ -37,6 +41,8 @@ export default function StockPage() {
       const res = await gasPost('updateStock', { ingredients: updated })
       if (res.status === 'success') {
         show('Stock updated', 'success')
+        idbDelete('getIngredients')
+        hydratedRef.current = false
         fetchIngredients()
       } else {
         show(res.message || 'Save failed', 'error')

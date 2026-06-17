@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Plus, X, ImagePlus } from 'lucide-react'
-import { gasGet, gasPost } from '../../services/gas.service.js'
+import { gasPost, gasGetCached } from '../../services/gas.service.js'
+import { idbDelete } from '../../services/idb.service.js'
 import { formatPrice, compressImage } from '../../utils/helpers.js'
 import { useToast } from '../../components/Toast.jsx'
 import AdminNav from '../../components/admin/AdminNav.jsx'
@@ -30,13 +31,11 @@ export default function MenuManagerPage() {
 
   useEffect(() => { fetchMenu() }, [])
 
-  async function fetchMenu() {
+  function fetchMenu() {
     setLoading(true)
-    try {
-      const res = await gasGet('getMenu')
-      if (res.status === 'success') setMenu(res.data || [])
-    } catch {}
-    setLoading(false)
+    gasGetCached('getMenu', {}, data => { setMenu(data || []); setLoading(false) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }
 
   async function toggleField(item, field) {
@@ -46,6 +45,7 @@ export default function MenuManagerPage() {
       const res = await gasPost('saveMenuItem', updated)
       if (res.status === 'success') {
         setMenu(m => m.map(i => i.item_id === item.item_id ? updated : i))
+        idbDelete('getMenu')
         show('Saved', 'success')
       } else {
         show(res.message || 'Save failed', 'error')
@@ -88,6 +88,7 @@ export default function MenuManagerPage() {
       const res = await gasPost('saveMenuItem', payload)
       if (res.status === 'success') {
         show('Saved', 'success')
+        idbDelete('getMenu')
         setForm(null)
         setImageFile(null)
         fetchMenu()

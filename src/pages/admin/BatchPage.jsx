@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { gasGet } from '../../services/gas.service.js'
+import { gasGetCached } from '../../services/gas.service.js'
 import { getTodayStr } from '../../utils/helpers.js'
 import AdminNav from '../../components/admin/AdminNav.jsx'
 import BatchSorter from '../../components/admin/BatchSorter.jsx'
@@ -12,17 +12,16 @@ export default function BatchPage() {
 
   useEffect(() => { fetchBatch() }, [date])
 
-  async function fetchBatch() {
+  function fetchBatch() {
     setLoading(true)
-    try {
-      const [batchRes, volRes] = await Promise.all([
-        gasGet('getBatchSummary', { date }),
-        gasGet('calcBatchVolumes', { date }),
-      ])
-      if (batchRes.status === 'success') setBatches(batchRes.data || [])
-      if (volRes.status === 'success') setVolumes(volRes.data || {})
-    } catch {}
-    setLoading(false)
+    let batchReady = false, volReady = false
+    function checkReady() { if (batchReady && volReady) setLoading(false) }
+
+    gasGetCached('getBatchSummary', { date }, data => { setBatches(data || []); batchReady = true; checkReady() })
+      .catch(() => {}).finally(() => { batchReady = true; checkReady() })
+
+    gasGetCached('calcBatchVolumes', { date }, data => { setVolumes(data || {}); volReady = true; checkReady() })
+      .catch(() => {}).finally(() => { volReady = true; checkReady() })
   }
 
   const totalOrders = batches.reduce((sum, b) => sum + (b.orders?.length || 0), 0)

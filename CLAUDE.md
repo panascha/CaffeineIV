@@ -171,7 +171,7 @@ All data lives in Google Sheets, accessed exclusively through a deployed GAS web
 
 **`useShop()`** returns: `{ shopOpen, announcement, stampThreshold, gachaActive, promptpayNumber, deliveryLocations, blockedDates, loaded, refetchConfig }`. `promptpayNumber` falls back to `VITE_PROMPTPAY_NUMBER` if the Sheet field is empty. `deliveryLocations` is a `string[]` (empty = free-text fallback). `blockedDates` is a `string[]` of `YYYY-MM-DD` strings.
 
-**`useCart()`** returns: `{ items, addItem(item), removeItem(key), updateQty(key, qty), clearCart(), total, count, itemKey }`. Import `itemKey` directly from `CartContext` when you need it outside the hook.
+**`useCart()`** returns: `{ items, addItem(item), removeItem(key), updateQty(key, qty), updateItem(oldKey, newData), clearCart(), total, count, itemKey }`. `updateItem` replaces the item at `oldKey` with `newData`; if `newData` matches an existing key, quantities are merged. Import `itemKey` directly from `CartContext` when you need it outside the hook.
 
 **`useToast()`** returns: `{ show(message, type?, duration?) }` from `src/components/Toast.jsx`. `type`: `'info'` (default) | `'success'` | `'error'`. Default duration 3000ms. Toast renders above bottom tab bar.
 
@@ -201,7 +201,7 @@ GAS Script Properties (set in Apps Script → Project Settings):
 
 **POST actions (no secret):** `login`, `setAdminPassword` (first-run only, blocked once any admin exists)
 
-**POST actions (require secret):** `submitOrder`, `updateStatus`, `uploadDropoffPhoto`, `saveMenuItem`, `uploadMenuImage`, `updateConfig`, `updateStock`, `submitFeedback`, `topUpWallet`, `changePassword`
+**POST actions (require secret):** `submitOrder`, `updateStatus`, `uploadDropoffPhoto`, `saveMenuItem`, `uploadMenuImage`, `updateConfig`, `updateStock`, `submitFeedback`, `topUpWallet`, `changePassword`, `requestDeliverySlot`
 
 **GET actions:** `getMenu`, `getOrders&date=`, `getOrderStatus&order_id=`, `getConfig`, `getDeliverySlots&from=`, `getCustomer&phone=`, `getIngredients`, `getBatchSummary&date=`, `calcBatchVolumes&date=`, `getWardGrouping&date=`
 
@@ -219,6 +219,7 @@ GAS Script Properties (set in Apps Script → Project Settings):
 | `calcBatchVolumes(date)` | Sum ingredient requirements from day's orders |
 | `updateCustomerStamps(phone, delta)` | Increment/decrement stamps |
 | `deductWallet(phone, amount)` | Deduct from customer wallet balance |
+| `requestDeliverySlot_(data)` | Append slot request to `slot_requests` sheet (auto-creates sheet if missing) |
 
 ## Order Status Flow
 
@@ -235,7 +236,7 @@ GAS Script Properties (set in Apps Script → Project Settings):
 
 ## Google Sheets Schema
 
-9 sheets: `admins`, `orders`, `customers`, `menu`, `delivery_slots`, `ingredients`, `feedback`, `config`, `slip_hashes`
+10 sheets: `admins`, `orders`, `customers`, `menu`, `delivery_slots`, `ingredients`, `feedback`, `config`, `slip_hashes`, `slot_requests`
 
 - `orders`: `order_id`, `created_at`, `delivery_date`, `delivery_slot`, `delivery_location`, `customer_name`, `customer_phone`, `alt_contact`, `items` (JSON), `total_thb`, `note`, `is_gift`, `gift_message`, `is_beta_tester`, `is_fast_pass`, `is_gacha`, `slip_url`, `slip_hash`, `status`, `dropoff_photo_url`, `wallet_used_thb`
 - `customers`: `phone` (PK), `name`, `stamps`, `wallet_thb`, `usual_order` (JSON), `last_location`, `total_orders`, `registered_at`
@@ -243,6 +244,7 @@ GAS Script Properties (set in Apps Script → Project Settings):
 - `delivery_slots`: `date`, `slot_id`, `slot_label`, `cut_off_datetime`, `capacity`, `booked`, `active`
 - `config`: `shop_open`, `announcement`, `promptpay_number`, `stamp_threshold`, `gacha_active`, `delivery_locations` (JSON array string), `blocked_dates` (JSON array of YYYY-MM-DD strings)
 - `slip_hashes`: `hash`, `order_id`, `created_at`
+- `slot_requests`: `phone`, `preferred_date`, `preferred_time`, `created_at` — auto-created on first `requestDeliverySlot` call; admin reads directly in Sheets
 
 ## PWA
 

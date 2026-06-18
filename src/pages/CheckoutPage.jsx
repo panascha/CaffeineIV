@@ -40,8 +40,10 @@ function Field({ label, children }) {
   )
 }
 
-function NoSlotsRequest() {
-  const [phone, setPhone] = useState('')
+const TIME_SLOTS = ['Morning (9–11)', 'Late morning (11–13)', 'Afternoon (13–16)', 'Evening (16–18)']
+
+function NoSlotsRequest({ defaultPhone = '' }) {
+  const [phone, setPhone] = useState(defaultPhone)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -76,9 +78,11 @@ function NoSlotsRequest() {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <p style={{ margin: '0 0 4px', fontSize: '14px', color: '#C0392B' }}>No delivery slots available right now.</p>
-      <p style={{ margin: 0, fontSize: '13px', color: '#8C6A52' }}>Request a slot and we'll notify you when one opens.</p>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ background: '#FFF3F0', border: '1px solid #F5C6BB', borderRadius: '0.875rem', padding: '12px 14px' }}>
+        <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#C0392B' }}>No slots open right now</p>
+        <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#8C6A52' }}>Leave your details and we'll reach out when delivery becomes available.</p>
+      </div>
       <input
         value={phone}
         onChange={e => setPhone(e.target.value)}
@@ -93,12 +97,21 @@ function NoSlotsRequest() {
         onChange={e => setDate(e.target.value)}
         style={inputStyle}
       />
-      <input
-        value={time}
-        onChange={e => setTime(e.target.value)}
-        placeholder="Preferred time (e.g. morning, 9:00–11:00)"
-        style={inputStyle}
-      />
+      <div>
+        <p style={{ margin: '0 0 6px', fontSize: '13px', fontWeight: 500, color: '#8C6A52' }}>Preferred time</p>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {TIME_SLOTS.map(slot => (
+            <button
+              key={slot}
+              type="button"
+              onClick={() => setTime(t => t === slot ? '' : slot)}
+              style={{ background: time === slot ? '#7C3A1E' : '#F5EDE3', color: time === slot ? '#fff' : '#2C1A0E', border: 'none', borderRadius: '9999px', padding: '8px 14px', fontSize: '13px', fontWeight: time === slot ? 600 : 400, cursor: 'pointer', transition: '150ms ease-out' }}
+            >
+              {slot}
+            </button>
+          ))}
+        </div>
+      </div>
       {error && <p style={{ margin: 0, fontSize: '13px', color: '#C0392B' }}>{error}</p>}
       <button
         type="submit"
@@ -302,7 +315,7 @@ export default function CheckoutPage() {
           {slotsLoading ? (
             <p style={{ margin: 0, fontSize: '14px', color: '#8C6A52' }}>Loading slots…</p>
           ) : filteredSlots.length === 0 ? (
-            <NoSlotsRequest />
+            <NoSlotsRequest defaultPhone={phone} />
           ) : (
             <>
               <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '12px', paddingBottom: '2px', scrollbarWidth: 'none' }}>

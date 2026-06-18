@@ -480,15 +480,23 @@ function deductWallet(phone, amount) {
 function calcBatchVolumes(date) {
   const orders = getOrders(date);
   const ingredients = getIngredients();
+  const menuItems = getMenu();
   const ingMap = {};
   ingredients.forEach(ing => ingMap[ing.ingredient_id] = ing);
+  const menuMap = {};
+  menuItems.forEach(m => menuMap[m.item_id] = m);
   const volumes = {};
   orders.forEach(o => {
     (o.items || []).forEach(item => {
-      if (item.milk) {
-        const key = `${item.milk}_milk`;
-        volumes[key] = (volumes[key] || 0) + (ingMap[key]?.per_drink_qty || 0) * item.qty;
-      }
+      const menuItem = menuMap[item.id];
+      if (!menuItem) return;
+      const ingIds = Array.isArray(menuItem.ingredients_used)
+        ? menuItem.ingredients_used
+        : tryParse(menuItem.ingredients_used, []);
+      ingIds.forEach(ingId => {
+        if (!ingMap[ingId]) return;
+        volumes[ingId] = (volumes[ingId] || 0) + (ingMap[ingId].per_drink_qty || 0) * item.qty;
+      });
     });
   });
   return volumes;

@@ -10,29 +10,39 @@ const SWEET_OPTIONS = [
   { value: 100, label: '100%' },
 ]
 
-const MILK_LABELS = { fresh: 'Fresh milk', oat: 'Oat milk', none: 'No milk' }
+function normOpts(raw) {
+  const arr = Array.isArray(raw) ? raw
+    : typeof raw === 'string'
+      ? (() => { try { return JSON.parse(raw || '[]') } catch { return [] } })()
+      : []
+  return arr.map(o => typeof o === 'string'
+    ? { name: o.replace(/\s*\(\+\d+\)/, '').trim(), surcharge: Number(o.match(/\(\+(\d+)\)/)?.[1] || 0) }
+    : { name: String(o.name || ''), surcharge: Number(o.surcharge) || 0 }
+  )
+}
 
 export default function DrinkCustomizer({ item, onClose, initialValues = null, editKey = null, onUpdate = null }) {
   const { addItem } = useCart()
-  const beans = item.bean_options ? (typeof item.bean_options === 'string' ? JSON.parse(item.bean_options) : item.bean_options) : []
-  const milks = item.milk_options ? (typeof item.milk_options === 'string' ? JSON.parse(item.milk_options) : item.milk_options) : []
+  const beans = normOpts(item.bean_options)
+  const milks = normOpts(item.milk_options)
 
   const [bean, setBean] = useState(() => {
-    if (initialValues?.bean) {
-      return beans.find(b => b.replace(/\s*\(\+\d+\)/, '').trim() === initialValues.bean) || beans[0] || ''
-    }
-    return beans[0] || ''
+    if (initialValues?.bean) return beans.find(b => b.name === initialValues.bean) || beans[0] || null
+    return beans[0] || null
   })
   const [sweet, setSweet] = useState(initialValues?.sweet ?? 50)
-  const [milk, setMilk] = useState(initialValues?.milk ?? (milks[0] || ''))
+  const [milk, setMilk] = useState(() => {
+    if (initialValues?.milk) return milks.find(m => m.name === initialValues.milk) || milks[0] || null
+    return milks[0] || null
+  })
   const [qty, setQty] = useState(initialValues?.qty ?? 1)
   const [addOn, setAddOn] = useState(initialValues?.add_on ?? '')
   const [addOnPrice, setAddOnPrice] = useState(initialValues?.add_on_price ?? 0)
   const [closing, setClosing] = useState(false)
 
-  const oatSurcharge = milk === 'oat' ? (item.oat_surcharge_thb || 0) : 0
-  const beanSurcharge = parseBeanSurcharge(bean)
-  const unitPrice = item.base_price_thb + oatSurcharge + beanSurcharge + (addOnPrice || 0)
+  const beanSurcharge = bean?.surcharge || 0
+  const milkSurcharge = milk?.surcharge || 0
+  const unitPrice = item.base_price_thb + milkSurcharge + beanSurcharge + (addOnPrice || 0)
 
   function handleClose() {
     setClosing(true)
@@ -44,9 +54,9 @@ export default function DrinkCustomizer({ item, onClose, initialValues = null, e
       id: item.item_id,
       name: item.name,
       qty,
-      bean: beans.length > 0 ? bean.replace(/\s*\(\+\d+\)/, '').trim() : undefined,
+      bean: beans.length > 0 ? bean?.name : undefined,
       sweet: SWEET_OPTIONS.some(s => s.value === sweet) ? sweet : 50,
-      milk: milks.length > 0 ? milk : undefined,
+      milk: milks.length > 0 ? milk?.name : undefined,
       price: unitPrice,
       add_on: addOn.trim() || undefined,
       add_on_price: addOnPrice > 0 ? addOnPrice : undefined,
@@ -81,15 +91,11 @@ export default function DrinkCustomizer({ item, onClose, initialValues = null, e
         {beans.length > 1 && (
           <Section label="Coffee Type">
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {beans.map(b => {
-                const label = b.replace(/\s*\(\+\d+\)/, '').trim()
-                const sur = parseBeanSurcharge(b)
-                return (
-                  <Chip key={b} active={bean === b} onClick={() => setBean(b)}>
-                    {label}{sur > 0 ? ` +฿${sur}` : ''}
-                  </Chip>
-                )
-              })}
+              {beans.map(b => (
+                <Chip key={b.name} active={bean?.name === b.name} onClick={() => setBean(b)}>
+                  {b.name}{b.surcharge > 0 ? ` +฿${b.surcharge}` : ''}
+                </Chip>
+              ))}
             </div>
           </Section>
         )}
@@ -108,8 +114,8 @@ export default function DrinkCustomizer({ item, onClose, initialValues = null, e
           <Section label="Milk">
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {milks.map(m => (
-                <Chip key={m} active={milk === m} onClick={() => setMilk(m)}>
-                  {MILK_LABELS[m] || m}{m === 'oat' && oatSurcharge > 0 ? ` +฿${oatSurcharge}` : ''}
+                <Chip key={m.name} active={milk?.name === m.name} onClick={() => setMilk(m)}>
+                  {m.name}{m.surcharge > 0 ? ` +฿${m.surcharge}` : ''}
                 </Chip>
               ))}
             </div>
@@ -157,11 +163,6 @@ export default function DrinkCustomizer({ item, onClose, initialValues = null, e
       </div>
     </div>
   )
-}
-
-function parseBeanSurcharge(name) {
-  const m = name?.match(/\(\+(\d+)\)/)
-  return m ? Number(m[1]) : 0
 }
 
 function Section({ label, children }) {
